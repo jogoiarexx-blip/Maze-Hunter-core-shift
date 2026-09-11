@@ -2,9 +2,9 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#07111d">
-<title>Maze Hunter: Core Shift v0.3.1</title>
+<title>Maze Hunter: Core Shift v0.4.1</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,11 +12,11 @@
   <header class="topbar">
     <div>
       <h1>MAZE HUNTER <span>CORE SHIFT</span></h1>
-      <p>Explore. Evolua. Sobreviva.</p>
+      <p id="levelLabel">Explore. Evolua. Sobreviva.</p>
     </div>
     <div class="top-actions">
       <div class="wallet">💎 <b id="wallet">0</b></div>
-      <button id="pauseBtn" class="small-btn hidden">II</button>
+      <button id="pauseBtn" class="small-btn hidden">Ⅱ</button>
     </div>
   </header>
 
@@ -29,8 +29,10 @@
         <div>VIDAS <b id="lives">3</b></div>
         <div>COMBO <b id="combo">x1</b></div>
         <div>POWER <b id="power">—</b></div>
-        <div>OBJ <b id="objective">FRAGMENTOS</b></div>
+        <div>OBJ <b id="objective">—</b></div>
       </div>
+
+      <div id="toast" class="toast hidden"></div>
 
       <div id="mainMenu" class="menu-layer">
         <div class="menu-backdrop"></div>
@@ -43,23 +45,30 @@
               <h2>MAZE HUNTER</h2>
               <h3>CORE SHIFT</h3>
               <p>Domine labirintos vivos, monte sua build e enfrente os guardiões do Núcleo.</p>
-              <div class="version-chip">v0.3.1</div>
+              <div class="version-chip">v0.4.1</div>
             </div>
           </div>
 
           <nav class="main-buttons">
-            <button class="primary" data-action="play">▶ JOGAR</button>
+            <button class="primary" data-screen-open="levels">▶ JOGAR <span>Escolher fase</span></button>
             <button data-screen-open="nucleus">◆ NÚCLEO <span>Upgrades permanentes</span></button>
             <button data-screen-open="equipment">◈ EQUIPAMENTOS <span>Build e power-ups</span></button>
-            <button data-screen-open="collection">▣ COLEÇÃO <span>Descobertas e inimigos</span></button>
+            <button data-screen-open="collection">▣ COLEÇÃO <span>Personagens e inimigos</span></button>
             <button data-screen-open="options">⚙ OPÇÕES <span>Vídeo, áudio e acessibilidade</span></button>
-            <button data-screen-open="controls">⌨ CONTROLES <span>Teclado e gamepad</span></button>
+            <button data-screen-open="controls">⌨ CONTROLES <span>Teclado, gamepad e mobile</span></button>
             <button data-screen-open="credits">★ CRÉDITOS</button>
           </nav>
 
           <div class="menu-footer">
-            <span>WASD / SETAS</span><span>ESPAÇO: DASH</span><span>ENTER: CONFIRMAR</span>
+            <span>WASD / SETAS</span><span>ESPAÇO: DASH</span><span>GAMEPAD</span><span>MOBILE</span>
           </div>
+        </section>
+
+        <section class="menu-card submenu hidden" data-screen="levels">
+          <button class="back-btn" data-back>← VOLTAR</button>
+          <h2>SELEÇÃO DE FASE</h2>
+          <p class="lead">Cada área possui layout, objetivos e ameaças próprias.</p>
+          <div id="levelGrid" class="level-grid"></div>
         </section>
 
         <section class="menu-card submenu hidden" data-screen="nucleus">
@@ -72,7 +81,7 @@
         <section class="menu-card submenu hidden" data-screen="equipment">
           <button class="back-btn" data-back>← VOLTAR</button>
           <h2>EQUIPAMENTOS</h2>
-          <p class="lead">Escolha até 3 módulos para destacar na sua build.</p>
+          <p class="lead">Escolha até 3 módulos para compor a build ativa.</p>
           <div id="equipmentGrid" class="equipment-grid"></div>
           <div class="build-box"><b>BUILD ATIVA</b><div id="equippedSlots"></div></div>
         </section>
@@ -84,8 +93,9 @@
             <article><b>Caçador do Núcleo</b><img src="assets/sprites/player/idle/00.webp"><small>Protagonista energético.</small></article>
             <article><b>Hunter</b><img src="assets/sprites/enemies/hunter/move/00.webp"><small>Perseguição direta.</small></article>
             <article><b>Strategist</b><img src="assets/sprites/enemies/strategist/move/00.webp"><small>Tenta cortar sua rota.</small></article>
-            <article><b>Ambusher</b><img src="assets/sprites/enemies/ambusher/move/00.webp"><small>Mudanças imprevisíveis.</small></article>
+            <article><b>Ambusher</b><img src="assets/sprites/enemies/ambusher/move/00.webp"><small>Movimento imprevisível.</small></article>
             <article><b>Phase</b><img src="assets/sprites/enemies/phase/move/00.webp"><small>Atravessa estruturas.</small></article>
+            <article><b>Rail Sentinel</b><img src="assets/sprites/enemies/sentinel/move/00.webp"><small>Patrulheiro do metrô.</small></article>
             <article><b>Core Warden</b><img src="assets/sprites/bosses/core_warden/idle/00.webp"><small>Guardião da Fase 1.</small></article>
           </div>
         </section>
@@ -93,34 +103,24 @@
         <section class="menu-card submenu hidden" data-screen="options">
           <button class="back-btn" data-back>← VOLTAR</button>
           <h2>OPÇÕES</h2>
-
           <div class="option-row">
-            <div><b>QUALIDADE GRÁFICA</b><small>Controla glow e efeitos do canvas.</small></div>
-            <select id="graphicsSelect">
-              <option value="auto">Automático</option>
-              <option value="low">Baixo</option>
-              <option value="medium">Médio</option>
-              <option value="high">Alto</option>
-            </select>
+            <div><b>QUALIDADE GRÁFICA</b><small>Glow e efeitos visuais.</small></div>
+            <select id="graphicsSelect"><option value="auto">Automático</option><option value="low">Baixo</option><option value="medium">Médio</option><option value="high">Alto</option></select>
           </div>
-
           <div class="option-row">
-            <div><b>VOLUME GERAL</b><small>Preparado para o sistema de áudio.</small></div>
+            <div><b>VOLUME GERAL</b><small>Preferência salva para o sistema de áudio.</small></div>
             <input id="volumeRange" type="range" min="0" max="100" value="80">
           </div>
-
           <div class="option-row">
-            <div><b>REDUZIR FLASHES</b><small>Diminui pulsos e brilho de efeitos.</small></div>
+            <div><b>REDUZIR FLASHES</b><small>Diminui pulsos intensos.</small></div>
             <label class="switch"><input id="reduceFlash" type="checkbox"><span></span></label>
           </div>
-
           <div class="option-row">
-            <div><b>TELA CHEIA</b><small>Alterna o jogo para fullscreen.</small></div>
+            <div><b>TELA CHEIA</b><small>Alterna fullscreen.</small></div>
             <button id="fullscreenBtn">ATIVAR</button>
           </div>
-
           <div class="option-row danger">
-            <div><b>ZERAR PROGRESSO</b><small>Apaga cristais, upgrades e build.</small></div>
+            <div><b>ZERAR PROGRESSO</b><small>Apaga cristais, upgrades e fases concluídas.</small></div>
             <button id="resetSaveBtn">ZERAR</button>
           </div>
         </section>
@@ -132,11 +132,10 @@
             <div><kbd>WASD</kbd><span>Movimento</span></div>
             <div><kbd>↑ ↓ ← →</kbd><span>Movimento alternativo</span></div>
             <div><kbd>ESPAÇO</kbd><span>Dash</span></div>
-            <div><kbd>ESC</kbd><span>Pausar / Menu</span></div>
-            <div><kbd>ENTER</kbd><span>Confirmar menus</span></div>
-            <div><kbd>GAMEPAD</kbd><span>Analógico/D-pad + botão A</span></div>
+            <div><kbd>ESC</kbd><span>Pausar / voltar</span></div>
+            <div><kbd>GAMEPAD</kbd><span>D-pad / analógico + A</span></div>
+            <div><kbd>TOUCH</kbd><span>Direcional e Dash na tela</span></div>
           </div>
-          <p class="lead">O suporte de gamepad detecta automaticamente o primeiro controle conectado.</p>
         </section>
 
         <section class="menu-card submenu hidden" data-screen="credits">
@@ -147,7 +146,7 @@
             <h3>Maze Hunter: Core Shift</h3>
             <p>Conceito e desenvolvimento: <b>Luis Paulo Alves</b></p>
             <p>Projeto original de arcade labiríntico com progressão permanente.</p>
-            <span>Versão 0.3.1</span>
+            <span>Versão 0.4.1</span>
           </div>
         </section>
 
@@ -160,6 +159,24 @@
             <button data-action="quit">VOLTAR AO MENU</button>
           </nav>
         </section>
+
+        <section class="menu-card result-card hidden" data-screen="result">
+          <h2 id="resultTitle">RESULTADO</h2>
+          <p id="resultText"></p>
+          <nav class="pause-buttons">
+            <button class="primary" data-action="next">PRÓXIMA FASE</button>
+            <button data-action="retry">JOGAR NOVAMENTE</button>
+            <button data-action="quit">MENU PRINCIPAL</button>
+          </nav>
+        </section>
+      </div>
+
+      <div id="touchControls" class="touch-controls">
+        <div class="dpad">
+          <button data-touch="up">▲</button>
+          <div><button data-touch="left">◀</button><button data-touch="down">▼</button><button data-touch="right">▶</button></div>
+        </div>
+        <button class="dash-touch" data-touch="dash">DASH</button>
       </div>
     </section>
 
@@ -176,13 +193,12 @@
         </div>
       </div>
       <div class="card">
-        <h3>Objetivos da Fase 1</h3>
-        <p id="objectiveText">Colete os fragmentos, ative os 2 terminais, encontre a chave e abra o portão.</p>
+        <h3>Objetivo atual</h3>
+        <p id="objectiveText">Escolha uma fase.</p>
       </div>
-      <div class="card boss-card">
-        <h3>Core Warden</h3>
-        <img src="assets/sprites/bosses/core_warden/idle/00.webp" alt="">
-        <p>Use Overdrive para quebrar a proteção do núcleo.</p>
+      <div class="card">
+        <h3>Checkpoint</h3>
+        <p id="checkpointText">Nenhum checkpoint ativo.</p>
       </div>
       <div class="card">
         <h3>Build equipada</h3>

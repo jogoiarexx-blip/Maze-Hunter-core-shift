@@ -1,4 +1,4 @@
-# Maze Hunter: Core Shift v0.3.1
+# Maze Hunter: Core Shift v0.4.1
 
 Protótipo jogável inspirado na lógica de labirintos clássicos, mas com progressão, power-ups de fase e melhorias permanentes.
 
@@ -54,7 +54,7 @@ Controles:
 - novos mundos e tilesets
 
 
-## v0.3.1 — Nova identidade do protagonista
+## v0.4.1 — Nova identidade do protagonista
 - O sprite circular inspirado em Pac-Man foi removido.
 - Novo protagonista original: criatura energética encapuzada, corpo escuro, olhos ciano e aura azul/roxa.
 - Animações WebP independentes: idle (6), movimento (6), dash (5), Overdrive (6), dano (4) e morte (6).
@@ -65,7 +65,7 @@ Controles:
 - Menu inicial agora mostra o novo protagonista.
 
 
-## Novidades v0.3.1
+## Novidades v0.4.1
 - Objetivos múltiplos na Fase 1.
 - 2 terminais interativos.
 - Chave do Núcleo.
@@ -77,7 +77,7 @@ Controles:
 - Novos assets WebP organizados em `assets/sprites/items` e `assets/sprites/bosses`.
 
 
-## Correções e menu v0.3.1
+## Correções e menu v0.4.1
 - Corrigido crash `drawImage`: frames agora são validados antes de desenhar.
 - Fallback visual impede que um asset ausente derrube o jogo.
 - Menu principal completo com Jogar, Núcleo, Equipamentos, Coleção, Opções, Controles e Créditos.
@@ -88,3 +88,30 @@ Controles:
 - Build com até 3 módulos equipados.
 - Tela de coleção de personagem, inimigos e boss.
 - Identificação da versão corrigida para 0.3.1.
+
+
+## v0.4.1
+- Seleção de fases real no menu.
+- Fase 2: Metrô Espectral, com mapa próprio e tema visual próprio.
+- Novo inimigo Rail Sentinel com 6 frames WebP.
+- Checkpoint funcional com respawn.
+- Bateria Espectral como objetivo especial da Fase 2.
+- Trilhos/zonas elétricas pulsantes que causam dano.
+- Fase 2 com 3 terminais, novo posicionamento de power-ups e inimigos.
+- Progressão: Fase 2 desbloqueia após concluir a Fase 1.
+- Suporte a gamepad com analógico/D-pad e dash.
+- Controles mobile na tela.
+- Corrigido fim de fase/Game Over: não dependem mais do antigo `#overlay`.
+- Loader tolerante a assets ausentes e `drawImage` protegido em todos os elementos.
+- Novos thumbnails WebP para seleção de fases.
+
+
+## v0.4.1 — Correção de movimento e colisão
+- Reescrita a colisão usando círculo contra tiles sólidos.
+- Player agora usa direção atual + direção enfileirada, permitindo curvas naturais nos corredores.
+- Movimento diagonal removido para evitar travar nas quinas.
+- Snap automático ao centro do tile em cruzamentos.
+- Inimigos agora só escolhem direções válidas nos corredores.
+- Hunter, Strategist, Ambusher e Sentinel respeitam paredes.
+- Phase não atravessa mais parede; mantém apenas comportamento/visual especial.
+- Reversão e cruzamentos tratados separadamente.

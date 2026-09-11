@@ -1,5 +1,5 @@
 {
-  "version": "0.3.1",
+  "version": "0.4.1",
   "name": "Maze Hunter: Core Shift",
   "assets_format": "webp",
   "player_animations": {
@@ -41,7 +41,11 @@
   "fixes": [
     "safe_drawImage_frames",
     "complete_main_menu",
-    "correct_version_label"
+    "correct_version_label",
+    "player_corridor_movement",
+    "tile_circle_collision",
+    "enemy_path_respects_walls",
+    "intersection_direction_logic"
   ],
   "menu_screens": [
     "home",
@@ -52,5 +56,26 @@
     "controls",
     "credits",
     "pause"
+  ],
+  "levels": [
+    "Laboratório Abandonado",
+    "Metrô Espectral"
+  ],
+  "new_assets": [
+    "sentinel",
+    "checkpoint_off",
+    "checkpoint_on",
+    "battery",
+    "level1_thumbnail",
+    "level2_thumbnail"
+  ],
+  "systems": [
+    "level_select",
+    "level_unlock",
+    "checkpoint",
+    "shock_hazards",
+    "gamepad",
+    "touch_controls",
+    "result_screen"
   ]
 }
