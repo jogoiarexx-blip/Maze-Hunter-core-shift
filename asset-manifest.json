@@ -1,5 +1,5 @@
 {
-  "version": "0.4.1",
+  "version": "0.5.0",
   "name": "Maze Hunter: Core Shift",
   "assets_format": "webp",
   "player_animations": {
@@ -30,7 +30,11 @@
     "terminals",
     "key",
     "exit_gate",
-    "boss_core_warden"
+    "boss_core_warden",
+    "combo_upgrade",
+    "crystal_reward_upgrade",
+    "third_level",
+    "second_boss"
   ],
   "boss_animations": {
     "idle": 6,
@@ -59,7 +63,8 @@
   ],
   "levels": [
     "Laboratório Abandonado",
-    "Metrô Espectral"
+    "Metrô Espectral",
+    "Cidade Neon"
   ],
   "new_assets": [
     "sentinel",
@@ -67,7 +72,10 @@
     "checkpoint_on",
     "battery",
     "level1_thumbnail",
-    "level2_thumbnail"
+    "level2_thumbnail",
+    "stalker",
+    "neon_overmind",
+    "level3_thumbnail"
   ],
   "systems": [
     "level_select",
