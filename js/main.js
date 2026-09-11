@@ -48,8 +48,15 @@ const upgradeDefs=[
  {id:'shield',name:'Escudo Inicial',desc:'começa a fase protegido',max:1,base:250},
  {id:'dash',name:'Dash Adicional',desc:'reduz recarga do dash',max:3,base:180},
 ];
-let save=JSON.parse(localStorage.getItem('mh-core-save')||'null')||{crystals:0,upgrades:{speed:0,overdrive:0,magnet:0,shield:0,dash:0}};
-function persist(){localStorage.setItem('mh-core-save',JSON.stringify(save));renderUpgrades();renderBuild()}
+let save=JSON.parse(localStorage.getItem('mh-core-save')||'null')||{};
+save.crystals=Number(save.crystals||0);
+save.upgrades=Object.assign({speed:0,overdrive:0,magnet:0,shield:0,dash:0},save.upgrades||{});
+save.equipped=Array.isArray(save.equipped)?save.equipped:[];
+save.settings=Object.assign({graphics:'auto',volume:80,reduceFlash:false},save.settings||{});
+function persist(){
+ localStorage.setItem('mh-core-save',JSON.stringify(save));
+ renderUpgrades();renderBuild();renderEquipment();
+}
 
 let state,player,enemies,frags,crystals,powers,terminals,keyItem,exitDoor,boss,raf,last=0,running=false;
 function reset(){
@@ -188,40 +195,180 @@ function drawMap(){
    ctx.fillStyle='#16344b';ctx.fillRect(px+6,py+6,T-12,4)
  }
 }
+function safeDraw(image,...args){
+ if(image instanceof HTMLImageElement && image.complete && image.naturalWidth>0){
+   ctx.drawImage(image,...args); return true;
+ }
+ return false;
+}
+function frame(list,index){
+ if(!Array.isArray(list)||!list.length)return null;
+ return list[((index%list.length)+list.length)%list.length]||list.find(Boolean)||null;
+}
 function draw(now){
- drawMap();let fi=Math.floor(now/140)%4;
- for(const f of frags)if(f.on){const im=images.fragment[fi];ctx.drawImage(im,f.x-16,f.y-16,32,32)}
- for(const c of crystals)if(c.on){const im=images.crystal[fi];ctx.drawImage(im,c.x-18,c.y-18,36,36)}
- for(const p of powers)if(p.on){ctx.drawImage(images.powers[p.type],p.x-20,p.y-20,40,40)}
- const a6=Math.floor(now/130)%6,a4=Math.floor(now/160)%4;
- for(const t of terminals){const im=(t.on?images.terminalActive:images.terminalOff)[a6];ctx.drawImage(im,t.x-24,t.y-24,48,48)}
- if(keyItem.on)ctx.drawImage(images.key[a6],keyItem.x-22,keyItem.y-22,44,44);
- ctx.drawImage((exitDoor.open?images.doorOpen:images.doorLocked)[a4],exitDoor.x-28,exitDoor.y-30,56,56);
- if(state.bossStarted&&!boss.dead){const im=images.boss[boss.state][a6];ctx.drawImage(im,boss.x-48,boss.y-48,96,96);ctx.fillStyle='#230808';ctx.fillRect(W/2-110,54,220,12);ctx.fillStyle='#ff5246';ctx.fillRect(W/2-108,56,216*(boss.hp/boss.maxHp),8)}
- for(const e of enemies)if(e.dead<=now){const im=images.enemies[e.type][fi];ctx.save();ctx.globalAlpha=(e.type==='phase'?0.7:1);ctx.drawImage(im,e.x-24,e.y-24,48,48);ctx.restore()}
- const arr=images.player[player.anim]||images.player.idle, im=arr[Math.floor(now/110)%arr.length];
- ctx.save();
- ctx.translate(player.x,player.y);
- let ang=Math.atan2(player.dir.y,player.dir.x);
- ctx.rotate(ang);
- ctx.shadowColor=(player.anim==='overdrive'?'#d54cff':'#32d8ff');
- ctx.shadowBlur=(player.anim==='dash'||player.anim==='overdrive')?18:9;
- ctx.drawImage(im,-31,-31,62,62);
+ drawMap();
+ const fi=Math.floor(now/140)%4;
+ const a6=Math.floor(now/130)%6;
+ const a4=Math.floor(now/160)%4;
+
+ for(const f of frags) if(f.on) safeDraw(frame(images.fragment,fi),f.x-16,f.y-16,32,32);
+ for(const c of crystals) if(c.on) safeDraw(frame(images.crystal,fi),c.x-18,c.y-18,36,36);
+ for(const p of powers) if(p.on) safeDraw(images.powers[p.type],p.x-20,p.y-20,40,40);
+
+ for(const t of terminals){
+   const list=t.on?images.terminalActive:images.terminalOff;
+   const im=frame(list,a6);
+   if(!safeDraw(im,t.x-24,t.y-24,48,48)){
+     ctx.fillStyle=t.on?'#2ff0df':'#36748a';
+     ctx.fillRect(t.x-13,t.y-18,26,36);
+   }
+ }
+
+ if(keyItem.on){
+   if(!safeDraw(frame(images.key,a6),keyItem.x-22,keyItem.y-22,44,44)){
+     ctx.fillStyle='#ffd339';ctx.beginPath();ctx.arc(keyItem.x,keyItem.y,9,0,Math.PI*2);ctx.fill();
+   }
+ }
+
+ const doorIm=frame(exitDoor.open?images.doorOpen:images.doorLocked,a4);
+ if(!safeDraw(doorIm,exitDoor.x-28,exitDoor.y-30,56,56)){
+   ctx.fillStyle=exitDoor.open?'#3ef2b8':'#d94d46';ctx.fillRect(exitDoor.x-18,exitDoor.y-24,36,48);
+ }
+
+ if(state.bossStarted&&!boss.dead){
+   const bossIm=frame(images.boss[boss.state]||images.boss.idle,a6);
+   safeDraw(bossIm,boss.x-48,boss.y-48,96,96);
+   ctx.fillStyle='#230808';ctx.fillRect(W/2-110,54,220,12);
+   ctx.fillStyle='#ff5246';ctx.fillRect(W/2-108,56,216*(boss.hp/boss.maxHp),8);
+ }
+
+ for(const e of enemies) if(e.dead<=now){
+   const im=frame(images.enemies[e.type],fi);
+   ctx.save();ctx.globalAlpha=(e.type==='phase'?0.7:1);
+   if(!safeDraw(im,e.x-24,e.y-24,48,48)){
+      ctx.fillStyle='#ff5470';ctx.beginPath();ctx.arc(e.x,e.y,18,0,Math.PI*2);ctx.fill();
+   }
+   ctx.restore();
+ }
+
+ const arr=images.player[player.anim]||images.player.idle;
+ const im=frame(arr,Math.floor(now/110));
+ ctx.save();ctx.translate(player.x,player.y);
+ const ang=Math.atan2(player.dir.y,player.dir.x);ctx.rotate(ang);
+ const q=currentGraphics();
+ if(q!=='low'){
+   ctx.shadowColor=(player.anim==='overdrive'?'#d54cff':'#32d8ff');
+   ctx.shadowBlur=(q==='high'&&(player.anim==='dash'||player.anim==='overdrive'))?20:8;
+ }
+ safeDraw(im,-31,-31,62,62);
  ctx.restore();
- if(player.shield){ctx.strokeStyle='#56c9ff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(player.x,player.y,30,0,Math.PI*2);ctx.stroke()}
+
+ if(player.shield){
+   ctx.strokeStyle='#56c9ff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(player.x,player.y,30,0,Math.PI*2);ctx.stroke();
+ }
 }
 function loop(now){if(!running)return;const dt=Math.min(.033,(now-last)/1000||0);last=now;updatePlayer(dt,now);updateEnemies(dt,now);updateBoss(dt,now);updateHud();draw(now);raf=requestAnimationFrame(loop)}
-function start(){reset();running=true;last=performance.now();$('#overlay').classList.add('hidden');requestAnimationFrame(loop)}
-
-function renderUpgrades(){
- $('#wallet').textContent=save.crystals;
- $('#upgradeList').innerHTML=upgradeDefs.map(u=>{
-   const lv=save.upgrades[u.id]||0,cost=u.base*(lv+1),max=lv>=u.max;
-   return `<div class="upgrade"><div><b>${u.name}</b> <span class="badge">Nv. ${lv}/${u.max}</span><small>${u.desc}</small></div><button data-buy="${u.id}" ${max?'disabled':''}>${max?'MAX':'💎 '+cost}</button></div>`
- }).join('');
- document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>buy(b.dataset.buy))
+function currentGraphics(){
+ const g=save.settings.graphics;
+ if(g!=='auto')return g;
+ return (navigator.hardwareConcurrency||4)<=4?'low':((navigator.hardwareConcurrency||4)<=8?'medium':'high');
 }
-function buy(id){const u=upgradeDefs.find(x=>x.id===id),lv=save.upgrades[id]||0,cost=u.base*(lv+1);if(lv<u.max&&save.crystals>=cost){save.crystals-=cost;save.upgrades[id]++;persist()}}
-function renderBuild(){$('#buildSummary').innerHTML=upgradeDefs.filter(u=>save.upgrades[u.id]>0).map(u=>`<span class="badge">${u.name} ${save.upgrades[u.id]}</span>`).join(' ')||'<small>Nenhum upgrade comprado.</small>'}
-$('#startBtn').onclick=start;$('#openUpgrades').onclick=()=>$('#upgradeModal').classList.remove('hidden');$('#closeUpgrades').onclick=()=>$('#upgradeModal').classList.add('hidden');
-load().then(()=>{reset();draw(0);renderUpgrades();renderBuild()});
+function renderUpgrades(){
+ const wallet=$('#wallet'); if(wallet)wallet.textContent=save.crystals;
+ const list=$('#upgradeList'); if(!list)return;
+ list.innerHTML=upgradeDefs.map(u=>{
+   const lv=save.upgrades[u.id]||0,cost=u.base*(lv+1),max=lv>=u.max;
+   return `<div class="upgrade"><div><b>${u.name}</b> <span class="badge">Nv. ${lv}/${u.max}</span><small>${u.desc}</small></div><button data-buy="${u.id}" ${max?'disabled':''}>${max?'MAX':'💎 '+cost}</button></div>`;
+ }).join('');
+ document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>buy(b.dataset.buy));
+}
+function buy(id){
+ const u=upgradeDefs.find(x=>x.id===id),lv=save.upgrades[id]||0,cost=u.base*(lv+1);
+ if(lv<u.max&&save.crystals>=cost){save.crystals-=cost;save.upgrades[id]++;persist()}
+}
+function renderBuild(){
+ const el=$('#buildSummary');if(!el)return;
+ const chosen=save.equipped.length?save.equipped:upgradeDefs.filter(u=>save.upgrades[u.id]>0).slice(0,3).map(u=>u.id);
+ el.innerHTML=chosen.map(id=>{const u=upgradeDefs.find(x=>x.id===id);return u?`<span class="badge">${u.name} ${save.upgrades[id]||0}</span>`:''}).join(' ')||'<small>Nenhum módulo equipado.</small>';
+}
+function renderEquipment(){
+ const grid=$('#equipmentGrid'),slots=$('#equippedSlots');if(!grid||!slots)return;
+ grid.innerHTML=upgradeDefs.map(u=>{
+   const selected=save.equipped.includes(u.id);
+   return `<div class="module ${selected?'selected':''}">
+     <b>${u.name}</b><p>Nível ${save.upgrades[u.id]||0}/${u.max}</p>
+     <button data-equip="${u.id}" ${(save.upgrades[u.id]||0)<=0?'disabled':''}>${selected?'REMOVER':'EQUIPAR'}</button>
+   </div>`;
+ }).join('');
+ document.querySelectorAll('[data-equip]').forEach(b=>b.onclick=()=>{
+   const id=b.dataset.equip;
+   if(save.equipped.includes(id))save.equipped=save.equipped.filter(x=>x!==id);
+   else if(save.equipped.length<3)save.equipped.push(id);
+   persist();
+ });
+ slots.innerHTML=save.equipped.map(id=>`<span class="badge">${upgradeDefs.find(u=>u.id===id)?.name||id}</span>`).join(' ')||'<small>Escolha até 3 módulos.</small>';
+}
+
+let menuScreen='home', paused=false;
+function showMenuScreen(name){
+ menuScreen=name;
+ $('#mainMenu').classList.remove('hidden');
+ document.querySelectorAll('[data-screen]').forEach(s=>s.classList.toggle('hidden',s.dataset.screen!==name));
+}
+function hideMenu(){
+ $('#mainMenu').classList.add('hidden');
+}
+function start(){
+ reset();running=true;paused=false;last=performance.now();hideMenu();$('#pauseBtn')?.classList.remove('hidden');requestAnimationFrame(loop)
+}
+function pauseGame(){
+ if(!running||paused)return;
+ paused=true;running=false;$('#pauseBtn')?.classList.add('hidden');showMenuScreen('pause');
+}
+function resumeGame(){
+ if(!paused)return;
+ paused=false;running=true;last=performance.now();hideMenu();$('#pauseBtn')?.classList.remove('hidden');requestAnimationFrame(loop)
+}
+function quitToMenu(){
+ running=false;paused=false;$('#pauseBtn')?.classList.add('hidden');showMenuScreen('home');draw(performance.now());
+}
+function restartGame(){start()}
+
+function setupMenu(){
+ document.querySelectorAll('[data-screen-open]').forEach(b=>b.onclick=()=>showMenuScreen(b.dataset.screenOpen));
+ document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>showMenuScreen(paused?'pause':'home'));
+ document.querySelector('[data-action="play"]')?.addEventListener('click',start);
+ document.querySelector('[data-action="resume"]')?.addEventListener('click',resumeGame);
+ document.querySelector('[data-action="restart"]')?.addEventListener('click',restartGame);
+ document.querySelector('[data-action="quit"]')?.addEventListener('click',quitToMenu);
+ $('#pauseBtn')?.addEventListener('click',pauseGame);
+
+ const gs=$('#graphicsSelect'),vr=$('#volumeRange'),rf=$('#reduceFlash');
+ if(gs){gs.value=save.settings.graphics;gs.onchange=()=>{save.settings.graphics=gs.value;persist()}}
+ if(vr){vr.value=save.settings.volume;vr.oninput=()=>{save.settings.volume=Number(vr.value);persist()}}
+ if(rf){rf.checked=!!save.settings.reduceFlash;rf.onchange=()=>{save.settings.reduceFlash=rf.checked;persist()}}
+ $('#fullscreenBtn')?.addEventListener('click',async()=>{
+   try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen()}catch(e){}
+ });
+ $('#resetSaveBtn')?.addEventListener('click',()=>{
+   if(confirm('Apagar todo o progresso de Maze Hunter?')){
+     localStorage.removeItem('mh-core-save');location.reload();
+   }
+ });
+}
+addEventListener('keydown',e=>{
+ if(e.key==='Escape'){
+   e.preventDefault();
+   if(running)pauseGame();
+   else if(paused&&menuScreen==='pause')resumeGame();
+   else if(!$('#mainMenu').classList.contains('hidden')&&menuScreen!=='home')showMenuScreen(paused?'pause':'home');
+ }
+});
+addEventListener('gamepadconnected',()=>console.info('[Maze Hunter] Gamepad conectado'));
+
+load().then(()=>{
+ reset();draw(0);renderUpgrades();renderBuild();renderEquipment();setupMenu();showMenuScreen('home');
+}).catch(err=>{
+ console.error('[Maze Hunter] Falha ao carregar assets:',err);
+ reset();renderUpgrades();renderBuild();renderEquipment();setupMenu();showMenuScreen('home');draw(0);
+});

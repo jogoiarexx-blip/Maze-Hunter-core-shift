@@ -1,5 +1,5 @@
 {
-  "version": "0.3.0",
+  "version": "0.3.1",
   "name": "Maze Hunter: Core Shift",
   "assets_format": "webp",
   "player_animations": {
@@ -37,5 +37,20 @@
     "attack": 6,
     "hurt": 6,
     "death": 6
-  }
+  },
+  "fixes": [
+    "safe_drawImage_frames",
+    "complete_main_menu",
+    "correct_version_label"
+  ],
+  "menu_screens": [
+    "home",
+    "nucleus",
+    "equipment",
+    "collection",
+    "options",
+    "controls",
+    "credits",
+    "pause"
+  ]
 }
