@@ -1,0 +1,41 @@
+{
+  "version": "0.3.0",
+  "name": "Maze Hunter: Core Shift",
+  "assets_format": "webp",
+  "player_animations": {
+    "idle": 6,
+    "move": 6,
+    "dash": 5,
+    "overdrive": 6,
+    "hurt": 4,
+    "death": 6
+  },
+  "enemies": [
+    "hunter",
+    "strategist",
+    "ambusher",
+    "phase"
+  ],
+  "powerups": [
+    "speed",
+    "shield",
+    "magnet",
+    "freeze",
+    "phase",
+    "teleport"
+  ],
+  "player_identity": "Original energy hunter: dark hooded body, cyan eyes, blue/purple energy",
+  "new_systems": [
+    "multi_objective",
+    "terminals",
+    "key",
+    "exit_gate",
+    "boss_core_warden"
+  ],
+  "boss_animations": {
+    "idle": 6,
+    "attack": 6,
+    "hurt": 6,
+    "death": 6
+  }
+}

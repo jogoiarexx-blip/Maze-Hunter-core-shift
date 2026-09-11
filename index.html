@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maze Hunter: Core Shift v0.2.0</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <div>
+      <h1>MAZE HUNTER <span>CORE SHIFT</span></h1>
+      <p>Pequenos fragmentos. Grandes possibilidades.</p>
+    </div>
+    <div class="wallet">💎 <b id="wallet">0</b></div>
+  </header>
+
+  <main>
+    <section class="game-shell">
+      <canvas id="game" width="896" height="640"></canvas>
+      <div class="hud">
+        <div>PONTOS <b id="score">0</b></div>
+        <div>VIDAS <b id="lives">3</b></div>
+        <div>COMBO <b id="combo">x1</b></div>
+        <div>POWER <b id="power">—</b></div><div>OBJ <b id="objective">FRAGMENTOS</b></div>
+      </div>
+      <div id="overlay" class="overlay">
+        <div class="panel">
+          <div class="hero-avatar"><img src="assets/sprites/player/idle/00.webp" alt=""></div>
+          <h2>Maze Hunter: Core Shift</h2>
+          <div class="version-chip">v0.2.0 • NOVO CAÇADOR</div>
+          <p>WASD / Setas para mover • Espaço para Dash</p>
+          <button id="startBtn">JOGAR</button>
+          <button id="openUpgrades">UPGRADES PERMANENTES</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="card">
+        <h3>Power-ups da fase</h3>
+        <div class="icons">
+          <img src="assets/sprites/powerups/speed.webp" title="Velocidade">
+          <img src="assets/sprites/powerups/shield.webp" title="Escudo">
+          <img src="assets/sprites/powerups/magnet.webp" title="Ímã">
+          <img src="assets/sprites/powerups/freeze.webp" title="Congelar">
+          <img src="assets/sprites/powerups/phase.webp" title="Atravessar paredes">
+          <img src="assets/sprites/powerups/teleport.webp" title="Teleporte">
+        </div>
+      </div>
+      <div class="card">
+        <h3>Objetivos da Fase 1</h3>
+        <p id="objectiveText">Colete os fragmentos, ative os 2 terminais, encontre a chave e escape pelo portão do Núcleo.</p>
+      </div>
+      <div class="card">
+        <h3>Core Warden</h3>
+        <p>Ao abrir o portão, o guardião desperta. Use Overdrive para danificar o núcleo e evite suas investidas.</p>
+      </div>
+      <div class="card">
+        <h3>Build equipada</h3>
+        <div id="buildSummary"></div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div id="upgradeModal" class="modal hidden">
+  <div class="modal-card">
+    <button id="closeUpgrades" class="x">×</button>
+    <h2>NÚCLEO — Upgrades Permanentes</h2>
+    <p>Gaste cristais coletados durante as fases.</p>
+    <div id="upgradeList"></div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
