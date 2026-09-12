@@ -223,8 +223,12 @@ let raf,last=0,running=false,paused=false,menuScreen='home',hitLock=0,toastTimer
 
 function reset(levelId=currentLevelId){
   currentLevelId=levelId;level=levels[levelId];map=level.map.map(r=>r.padEnd(COLS,'#').slice(0,COLS).split(''));
-  state={score:0,lives:3,combo:1,comboUntil:0,remaining:0,activePower:null,powerUntil:0,freezeUntil:0,terminals:0,hasSpecial:false,bossStarted:false,bossDefeated:false,startTime:performance.now(),kills:0,rareDrops:0};
-  player={x:level.start[0]*T+T/2,y:level.start[1]*T+T/2,dir:{x:-1,y:0},moveDir:{x:0,y:0},queuedDir:{x:0,y:0},speed:120*(1+save.upgrades.speed*.04),anim:'idle',shield:save.upgrades.shield>0,dashCd:0,overdriveUntil:0,skillCd:0};
+  const startNow=performance.now();
+  state={score:0,lives:3,combo:1,comboUntil:0,remaining:0,activePower:null,powerUntil:0,freezeUntil:0,terminals:0,hasSpecial:false,bossStarted:false,bossDefeated:false,startTime:startNow,kills:0,rareDrops:0,
+    playerReleaseAt:startNow+3000,enemiesReleaseAt:startNow+8000,playerReleased:false,enemiesReleased:false};
+  player={x:0,y:0,dir:{x:-1,y:0},moveDir:{x:0,y:0},queuedDir:{x:0,y:0},speed:120*(1+save.upgrades.speed*.04),anim:'idle',shield:save.upgrades.shield>0,dashCd:0,overdriveUntil:0,skillCd:0};
+  const safeStart=nearestWalkableTile(level.start[0],level.start[1]);
+  placeOnWalkable(player,safeStart.x,safeStart.y);
   frags=[];crystals=[];powers=[];enemies=[];
   terminals=level.terminals.map(([x,y])=>({x:x*T+T/2,y:y*T+T/2,on:false}));
   specialItem={x:level.special.pos[0]*T+T/2,y:level.special.pos[1]*T+T/2,on:true,type:level.special.type};
@@ -239,7 +243,10 @@ function reset(levelId=currentLevelId){
   }
   level.crystals.forEach(([x,y])=>crystals.push({x:x*T+T/2,y:y*T+T/2,on:true}));
   level.powers.forEach(([x,y,t])=>powers.push({x:x*T+T/2,y:y*T+T/2,type:t,on:true}));
-  level.enemies.forEach(([type,x,y],i)=>enemies.push({type,x:x*T+T/2,y:y*T+T/2,dir:i%2?{x:1,y:0}:{x:-1,y:0},speed:type==='sentinel'?92:type==='voidweaver'?86:74+i*4,dead:0}));
+  level.enemies.forEach(([type,x,y],i)=>{
+    const pos=nearestWalkableTile(x,y);
+    enemies.push({type,x:pos.x*T+T/2,y:pos.y*T+T/2,dir:i%2?{x:1,y:0}:{x:-1,y:0},speed:type==='sentinel'?92:type==='voidweaver'?86:74+i*4,dead:0});
+  });
   $('#levelLabel').textContent=`FASE ${levelId} — ${level.name}`;
   $('#objectiveText').textContent='Colete os fragmentos e cumpra os objetivos da área.';
   $('#checkpointText').textContent='Nenhum checkpoint ativo.';
@@ -288,6 +295,75 @@ function validDirsAt(x,y,r=11){
   ].filter(d=>canMove(x,y,d.x*step,d.y*step,r));
 }
 const near=(a,b,d=22)=>Math.hypot(a.x-b.x,a.y-b.y)<d;
+
+function isWalkableTile(tx,ty){
+  return tx>=0&&tx<COLS&&ty>=0&&ty<ROWS&&map[ty][tx]!=='#';
+}
+function nearestWalkableTile(tx,ty,maxRadius=6){
+  if(isWalkableTile(tx,ty))return {x:tx,y:ty};
+  for(let r=1;r<=maxRadius;r++){
+    for(let oy=-r;oy<=r;oy++){
+      for(let ox=-r;ox<=r;ox++){
+        if(Math.abs(ox)!==r&&Math.abs(oy)!==r)continue;
+        const nx=tx+ox,ny=ty+oy;
+        if(isWalkableTile(nx,ny))return {x:nx,y:ny};
+      }
+    }
+  }
+  return {x:1,y:1};
+}
+function placeOnWalkable(entity,tx,ty){
+  const p=nearestWalkableTile(tx,ty);
+  entity.x=p.x*T+T/2;entity.y=p.y*T+T/2;
+  return p;
+}
+function entityTile(entity){
+  return {x:Math.round((entity.x-T/2)/T),y:Math.round((entity.y-T/2)/T)};
+}
+function atTileCenter(entity,tol=2.2){
+  const tx=Math.round((entity.x-T/2)/T),ty=Math.round((entity.y-T/2)/T);
+  const cx=tx*T+T/2,cy=ty*T+T/2;
+  return Math.abs(entity.x-cx)<=tol&&Math.abs(entity.y-cy)<=tol;
+}
+function centerEntity(entity){
+  const t=entityTile(entity);
+  entity.x=t.x*T+T/2;entity.y=t.y*T+T/2;
+}
+function canEnterFrom(entity,dir){
+  const t=entityTile(entity);
+  return isWalkableTile(t.x+dir.x,t.y+dir.y);
+}
+
+
+
+function updateReleaseCountdown(now){
+  const box=$('#releaseCountdown'),main=$('#releaseMain'),sub=$('#releaseSub');
+  if(!box||!main||!sub)return;
+  if(now<state.playerReleaseAt){
+    const sec=Math.max(1,Math.ceil((state.playerReleaseAt-now)/1000));
+    box.classList.remove('hidden','enemy-wait');
+    main.textContent=sec;
+    sub.textContent='PREPARE-SE';
+    return;
+  }
+  if(!state.playerReleased){
+    state.playerReleased=true;
+    showToast('VAI!');
+  }
+  if(now<state.enemiesReleaseAt){
+    const sec=Math.max(1,Math.ceil((state.enemiesReleaseAt-now)/1000));
+    box.classList.remove('hidden');
+    box.classList.add('enemy-wait');
+    main.textContent=`INIMIGOS EM ${sec}`;
+    sub.textContent='VOCÊ TEM VANTAGEM';
+    return;
+  }
+  if(!state.enemiesReleased){
+    state.enemiesReleased=true;
+    showToast('INIMIGOS LIBERADOS','warn');
+  }
+  box.classList.add('hidden');
+}
 
 function showToast(text,type='good'){
   const el=$('#toast'); if(!el)return;
@@ -427,71 +503,75 @@ function gamepadVector(){
 }
 
 function updatePlayer(dt,now){
-  let wantX=0,wantY=0;
-  if(keys['arrowleft']||keys['a']||touch.left)wantX=-1;
-  if(keys['arrowright']||keys['d']||touch.right)wantX=1;
-  if(keys['arrowup']||keys['w']||touch.up)wantY=-1;
-  if(keys['arrowdown']||keys['s']||touch.down)wantY=1;
-
-  const gp=gamepadVector();
-  if(!wantX&&Math.abs(gp.x)>.25)wantX=Math.sign(gp.x);
-  if(!wantY&&Math.abs(gp.y)>.25)wantY=Math.sign(gp.y);
-
-  // Pac-like corridor movement: keep current direction until the requested turn is actually possible.
-  if(!player.moveDir)player.moveDir={x:0,y:0};
-  if(!player.queuedDir)player.queuedDir={x:0,y:0};
-
-  if(wantX||wantY){
-    // prioritize the stronger/most recent cardinal intent, avoiding diagonal wall snagging
-    if(Math.abs(wantX)>=Math.abs(wantY) && wantX) player.queuedDir={x:wantX,y:0};
-    else if(wantY) player.queuedDir={x:0,y:wantY};
+  if(now<state.playerReleaseAt){
+    player.anim='idle';
+    player.moveDir={x:0,y:0};
+    return;
   }
 
-  const baseSpeed=player.speed*(state.activePower==='speed'?1.45:1);
+  let want={x:0,y:0};
+  if(keys['arrowleft']||keys['a']||touch.left)want={x:-1,y:0};
+  else if(keys['arrowright']||keys['d']||touch.right)want={x:1,y:0};
+  else if(keys['arrowup']||keys['w']||touch.up)want={x:0,y:-1};
+  else if(keys['arrowdown']||keys['s']||touch.down)want={x:0,y:1};
+
+  const gp=gamepadVector();
+  if(!want.x&&!want.y){
+    if(Math.abs(gp.x)>.35&&Math.abs(gp.x)>=Math.abs(gp.y))want={x:Math.sign(gp.x),y:0};
+    else if(Math.abs(gp.y)>.35)want={x:0,y:Math.sign(gp.y)};
+  }
+  if(want.x||want.y)player.queuedDir=want;
+
   const skillPressed=keys['e']||touch.skill||gp.skill;
   if(skillPressed)usePulse(now);
+
   const dashPressed=keys[' ']||touch.dash||gp.dash;
-  const dashing=dashPressed&&now>player.dashCd;
-  let sp=baseSpeed;
-  if(dashing){
-    sp*=2.35;
+  let speed=player.speed*(state.activePower==='speed'?1.45:1);
+  if(dashPressed&&now>player.dashCd){
+    speed*=2.2;
     player.dashCd=now+Math.max(550,1200-save.upgrades.dash*180);
     player.anim='dash';
-  }else player.anim=(player.moveDir.x||player.moveDir.y)?'move':'idle';
-  if(player.overdriveUntil>now)player.anim='overdrive';
+  }
 
-  const phase=state.activePower==='phase';
-  const step=sp*dt;
-
-  // At tile centers, accept queued turns if valid.
-  const centeredX=alignedToGrid(player.x,5), centeredY=alignedToGrid(player.y,5);
-  if(centeredX&&centeredY){
-    snapIfClose(player);
-    const q=player.queuedDir;
-    if(q && (q.x||q.y) && (phase||canMove(player.x,player.y,q.x*5,q.y*5,12))){
+  // Direction decisions only at tile centers. This removes corner-locking.
+  if(atTileCenter(player,3.0)){
+    centerEntity(player);
+    const q=player.queuedDir||{x:0,y:0};
+    if((q.x||q.y)&&canEnterFrom(player,q)){
       player.moveDir={x:q.x,y:q.y};
       player.dir={x:q.x,y:q.y};
+    }else if((player.moveDir.x||player.moveDir.y)&&!canEnterFrom(player,player.moveDir)){
+      player.moveDir={x:0,y:0};
     }
   }
 
-  // Allow immediate reversal even outside exact center.
+  // Immediate reversal is always legal in the same corridor.
   const q=player.queuedDir;
-  if(q && player.moveDir && q.x===-player.moveDir.x && q.y===-player.moveDir.y){
+  if(q&&(q.x===-player.moveDir.x&&q.y===-player.moveDir.y)){
     player.moveDir={x:q.x,y:q.y};
     player.dir={x:q.x,y:q.y};
   }
 
-  let mx=player.moveDir.x*step,my=player.moveDir.y*step;
-  if(phase||canMove(player.x,player.y,mx,my,12)){
-    player.x+=mx;player.y+=my;
-  }else{
-    // stop exactly at corridor center instead of vibrating against walls
-    snapIfClose(player);
-    player.moveDir={x:0,y:0};
+  const step=speed*dt;
+  if(player.moveDir.x||player.moveDir.y){
+    let nx=player.x+player.moveDir.x*step;
+    let ny=player.y+player.moveDir.y*step;
+
+    // Never cross into a wall tile. Clamp on the current tile center when blocked.
+    if(!circleHitsWall(nx,ny,10)){
+      player.x=nx;player.y=ny;
+      if(player.anim!=='dash')player.anim='move';
+    }else{
+      centerEntity(player);
+      player.moveDir={x:0,y:0};
+      player.anim='idle';
+    }
+  }else if(player.anim!=='dash'){
     player.anim='idle';
   }
 
-  // horizontal tunnels may wrap; vertical movement remains clamped
+  if(player.overdriveUntil>now)player.anim='overdrive';
+
   if(player.x<0)player.x=W-1;
   if(player.x>=W)player.x=1;
   player.y=Math.max(T/2,Math.min(H-T/2,player.y));
@@ -500,7 +580,7 @@ function updatePlayer(dt,now){
   collect();
 }
 function chooseEnemyDir(e){
-  const dirs=validDirsAt(e.x,e.y,11);
+  const dirs=validDirsAt(e.x,e.y,10);
   if(!dirs.length)return {x:0,y:0};
 
   const reverse={x:-e.dir.x,y:-e.dir.y};
@@ -566,27 +646,28 @@ function chooseEnemyDir(e){
 }
 
 function updateEnemies(dt,now){
+  if(now<state.enemiesReleaseAt)return;
+
   for(const e of enemies){
     if(e.dead>now||state.freezeUntil>now)continue;
 
-    // The phase enemy no longer ignores maze collision; "phase" becomes visual/behavioral, not wall-cheating.
-    const centeredX=alignedToGrid(e.x,4),centeredY=alignedToGrid(e.y,4);
-    if(centeredX&&centeredY){
-      snapIfClose(e);
-      const dirs=validDirsAt(e.x,e.y,11);
+    if(atTileCenter(e,3.0)){
+      centerEntity(e);
+      const dirs=validDirsAt(e.x,e.y,10);
       const forwardOK=dirs.some(d=>d.x===e.dir.x&&d.y===e.dir.y);
       const intersection=dirs.length>=3;
-      if(!forwardOK||intersection||Math.random()<(e.type==='ambusher'?.10:e.type==='sentinel'?.06:.025)){
+      if(!forwardOK||intersection||Math.random()<0.035){
         e.dir=chooseEnemyDir(e);
       }
+      if(!e.dir||(!e.dir.x&&!e.dir.y))e.dir=chooseEnemyDir(e);
     }
 
     const step=e.speed*dt;
-    const mx=e.dir.x*step,my=e.dir.y*step;
-    if(canMove(e.x,e.y,mx,my,11)){
-      e.x+=mx;e.y+=my;
+    const nx=e.x+e.dir.x*step,ny=e.y+e.dir.y*step;
+    if(!circleHitsWall(nx,ny,10)){
+      e.x=nx;e.y=ny;
     }else{
-      snapIfClose(e);
+      centerEntity(e);
       e.dir=chooseEnemyDir(e);
     }
 
@@ -732,7 +813,7 @@ function draw(now){
 function loop(now){
   if(!running)return;
   const dt=Math.min(.033,(now-last)/1000||0);last=now;
-  updatePlayer(dt,now);updateEnemies(dt,now);updateBoss(dt,now);updateShocks(now);updateCombo(now);updateHud();draw(now);
+  updateReleaseCountdown(now);updatePlayer(dt,now);updateEnemies(dt,now);if(now>=state.enemiesReleaseAt)updateBoss(dt,now);if(now>=state.playerReleaseAt)updateShocks(now);updateCombo(now);updateHud();draw(now);
   raf=requestAnimationFrame(loop);
 }
 
@@ -790,10 +871,32 @@ function showMenuScreen(name){
 function hideMenu(){$('#mainMenu').classList.add('hidden')}
 
 function startLevel(id){
-  reset(id);running=true;paused=false;last=performance.now();hideMenu();$('#pauseBtn').classList.remove('hidden');requestAnimationFrame(loop);
+  reset(id);
+  const now=performance.now();
+  state.startTime=now;
+  state.playerReleaseAt=now+3000;
+  state.enemiesReleaseAt=now+8000;
+  state.playerReleased=false;
+  state.enemiesReleased=false;
+  running=true;paused=false;last=now;hideMenu();$('#pauseBtn').classList.remove('hidden');
+  updateReleaseCountdown(now);
+  requestAnimationFrame(loop);
 }
-function pauseGame(){if(!running||paused)return;paused=true;running=false;$('#pauseBtn').classList.add('hidden');showMenuScreen('pause')}
-function resumeGame(){if(!paused)return;paused=false;running=true;last=performance.now();hideMenu();$('#pauseBtn').classList.remove('hidden');requestAnimationFrame(loop)}
+let pauseStartedAt=0;
+function pauseGame(){
+  if(!running||paused)return;
+  pauseStartedAt=performance.now();
+  paused=true;running=false;$('#pauseBtn').classList.add('hidden');showMenuScreen('pause')
+}
+function resumeGame(){
+  if(!paused)return;
+  const now=performance.now();
+  const pausedFor=Math.max(0,now-pauseStartedAt);
+  state.playerReleaseAt+=pausedFor;
+  state.enemiesReleaseAt+=pausedFor;
+  state.startTime+=pausedFor;
+  paused=false;running=true;last=now;hideMenu();$('#pauseBtn').classList.remove('hidden');requestAnimationFrame(loop)
+}
 function quitToMenu(){running=false;paused=false;$('#pauseBtn').classList.add('hidden');showMenuScreen('home');draw(performance.now())}
 function restartGame(){startLevel(currentLevelId)}
 

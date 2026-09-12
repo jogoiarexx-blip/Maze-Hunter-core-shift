@@ -1,5 +1,5 @@
 {
-  "version": "0.6.0",
+  "version": "0.6.1",
   "name": "Maze Hunter: Core Shift",
   "assets_format": "webp",
   "player_animations": {
@@ -55,7 +55,12 @@
     "player_corridor_movement",
     "tile_circle_collision",
     "enemy_path_respects_walls",
-    "intersection_direction_logic"
+    "intersection_direction_logic",
+    "deterministic_tile_player_movement",
+    "validated_enemy_spawns",
+    "enemy_wall_respect",
+    "3s_player_release_countdown",
+    "5s_enemy_release_after_player"
   ],
   "menu_screens": [
     "home",

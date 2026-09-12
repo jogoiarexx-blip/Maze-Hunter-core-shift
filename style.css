@@ -43,3 +43,11 @@ body.graphics-low canvas{image-rendering:auto}.shock-glow{filter:none}
 .touch-actions{display:flex;gap:8px;align-items:flex-end}
 .skill-touch{width:68px!important;height:68px!important;border-radius:50%!important;border-color:#72efff!important;color:#9df7ff!important;background:#0b3140cc!important}
 .rank-chip{display:inline-block;margin:8px 0;padding:7px 13px;border-radius:999px;border:1px solid #6fe9ff;color:#a9f7ff;background:#071b29;font-weight:900;font-size:18px}
+
+.release-countdown{position:absolute;inset:0;z-index:9;display:grid;place-items:center;pointer-events:none}
+.release-countdown.hidden{display:none}
+.release-countdown>div{position:absolute}
+.release-main{font-size:92px;font-weight:1000;color:#fff;text-shadow:0 0 15px #58eaff,0 0 35px #315cff;letter-spacing:3px}
+.release-sub{margin-top:120px;padding:7px 14px;border:1px solid #4d86a6;border-radius:999px;background:#06121dcc;color:#9eeeff;font-weight:900;letter-spacing:2px;font-size:13px}
+.release-countdown.enemy-wait .release-main{font-size:34px;color:#ffcf63;text-shadow:0 0 16px #ff8a22}
+.release-countdown.enemy-wait .release-sub{margin-top:72px;color:#ffc989;border-color:#aa6537}
