@@ -1,15 +1,26 @@
 const C=document.querySelector('#game'),ctx=C.getContext('2d');
 const W=C.width,H=C.height,T=32,COLS=28,ROWS=20;
 const $=s=>document.querySelector(s);
-const keys={};
+const keys=Object.create(null);
 const touch={up:false,down:false,left:false,right:false,dash:false,skill:false};
 let gamepadDash=false;
 
+function inputKey(e){
+  if(e.code==='Space')return 'space';
+  return String(e.key||'').toLowerCase();
+}
 addEventListener('keydown',e=>{
-  keys[e.key.toLowerCase()]=true;
-  if(e.code==='Space')e.preventDefault();
+  keys[inputKey(e)]=true;
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
 });
-addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+addEventListener('keyup',e=>{
+  keys[inputKey(e)]=false;
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
+});
+addEventListener('blur',()=>{for(const k of Object.keys(keys))keys[k]=false;for(const k of Object.keys(touch))touch[k]=false});
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){for(const k of Object.keys(keys))keys[k]=false;for(const k of Object.keys(touch))touch[k]=false}
+});
 
 const paths={
   player:{idle:6,move:6,dash:5,overdrive:6,hurt:4,death:6},
@@ -27,35 +38,38 @@ function loadImage(src){
   });
 }
 async function load(){
+  const pending=[];
+  const queue=(src,target,index)=>pending.push(loadImage(src).then(image=>{target[index]=image}));
   for(const [anim,n] of Object.entries(paths.player)){
     images.player[anim]=[];
-    for(let i=0;i<n;i++)images.player[anim].push(await loadImage(`assets/sprites/player/${anim}/${String(i).padStart(2,'0')}.webp`));
+    for(let i=0;i<n;i++)queue(`assets/sprites/player/${anim}/${String(i).padStart(2,'0')}.webp`,images.player[anim],i);
   }
   for(const [e,n] of Object.entries(paths.enemies)){
     images.enemies[e]=[];
-    for(let i=0;i<n;i++)images.enemies[e].push(await loadImage(`assets/sprites/enemies/${e}/move/${String(i).padStart(2,'0')}.webp`));
+    for(let i=0;i<n;i++)queue(`assets/sprites/enemies/${e}/move/${String(i).padStart(2,'0')}.webp`,images.enemies[e],i);
   }
-  for(const p of paths.powers)images.powers[p]=await loadImage(`assets/sprites/powerups/${p}.webp`);
+  for(const p of paths.powers)pending.push(loadImage(`assets/sprites/powerups/${p}.webp`).then(image=>{images.powers[p]=image}));
   for(let i=0;i<4;i++){
-    images.fragment.push(await loadImage(`assets/sprites/collectibles/fragment_${String(i).padStart(2,'0')}.webp`));
-    images.crystal.push(await loadImage(`assets/sprites/collectibles/crystal_${String(i).padStart(2,'0')}.webp`));
-    images.doorLocked.push(await loadImage(`assets/sprites/items/door_locked/${String(i).padStart(2,'0')}.webp`));
-    images.doorOpen.push(await loadImage(`assets/sprites/items/door_open/${String(i).padStart(2,'0')}.webp`));
+    queue(`assets/sprites/collectibles/fragment_${String(i).padStart(2,'0')}.webp`,images.fragment,i);
+    queue(`assets/sprites/collectibles/crystal_${String(i).padStart(2,'0')}.webp`,images.crystal,i);
+    queue(`assets/sprites/items/door_locked/${String(i).padStart(2,'0')}.webp`,images.doorLocked,i);
+    queue(`assets/sprites/items/door_open/${String(i).padStart(2,'0')}.webp`,images.doorOpen,i);
   }
   for(let i=0;i<6;i++){
-    images.key.push(await loadImage(`assets/sprites/items/key/${String(i).padStart(2,'0')}.webp`));
-    images.battery.push(await loadImage(`assets/sprites/items/battery/${String(i).padStart(2,'0')}.webp`));
-    images.terminalOff.push(await loadImage(`assets/sprites/items/terminal_off/${String(i).padStart(2,'0')}.webp`));
-    images.terminalActive.push(await loadImage(`assets/sprites/items/terminal_active/${String(i).padStart(2,'0')}.webp`));
-    images.checkpointOff.push(await loadImage(`assets/sprites/items/checkpoint_off/${String(i).padStart(2,'0')}.webp`));
-    images.checkpointOn.push(await loadImage(`assets/sprites/items/checkpoint_on/${String(i).padStart(2,'0')}.webp`));
+    queue(`assets/sprites/items/key/${String(i).padStart(2,'0')}.webp`,images.key,i);
+    queue(`assets/sprites/items/battery/${String(i).padStart(2,'0')}.webp`,images.battery,i);
+    queue(`assets/sprites/items/terminal_off/${String(i).padStart(2,'0')}.webp`,images.terminalOff,i);
+    queue(`assets/sprites/items/terminal_active/${String(i).padStart(2,'0')}.webp`,images.terminalActive,i);
+    queue(`assets/sprites/items/checkpoint_off/${String(i).padStart(2,'0')}.webp`,images.checkpointOff,i);
+    queue(`assets/sprites/items/checkpoint_on/${String(i).padStart(2,'0')}.webp`,images.checkpointOn,i);
     for(const s of ['idle','attack','hurt','death']){
-      images.boss[s].push(await loadImage(`assets/sprites/bosses/core_warden/${s}/${String(i).padStart(2,'0')}.webp`));
-      images.boss2[s].push(await loadImage(`assets/sprites/bosses/neon_overmind/${s}/${String(i).padStart(2,'0')}.webp`));
-      images.boss3[s].push(await loadImage(`assets/sprites/bosses/abyss_engine/${s}/${String(i).padStart(2,'0')}.webp`));
+      queue(`assets/sprites/bosses/core_warden/${s}/${String(i).padStart(2,'0')}.webp`,images.boss[s],i);
+      queue(`assets/sprites/bosses/neon_overmind/${s}/${String(i).padStart(2,'0')}.webp`,images.boss2[s],i);
+      queue(`assets/sprites/bosses/abyss_engine/${s}/${String(i).padStart(2,'0')}.webp`,images.boss3[s],i);
     }
-    images.pulse.push(await loadImage(`assets/sprites/skills/pulse/${String(i).padStart(2,'0')}.webp`));
+    queue(`assets/sprites/skills/pulse/${String(i).padStart(2,'0')}.webp`,images.pulse,i);
   }
+  await Promise.all(pending);
 }
 
 const M1=[
@@ -74,7 +88,7 @@ const M1=[
 "     #.##          ##.#     ",
 "######.## ######## ##.######",
 "#............##............#",
-"#.####.#####.##.#####.####.#",
+"#.####.#####.#..#####.####.#",
 "#o..##................##..o#",
 "###.##.##.########.##.##.###",
 "#......##....##....##......#",
@@ -108,7 +122,7 @@ const M3=[
 "#.####..#.########.#..####.#",
 "#......##....##....##......#",
 "###.##....##....##....##.###",
-"#...##.##.##.##.##.##.##..#",
+"#...##.##.##.##.##.##.##..##",
 "#.####.##....##....##.####.#",
 "#......####.####.####......#",
 "####.#................#.####",
@@ -120,7 +134,7 @@ const M3=[
 "#....##.##........##.##....#",
 "#.######.####..####.######.#",
 "#o........................o#",
-"###.####.##########.####.###",
+"###.####.#####.####.####.###",
 "#..........................#",
 "############################"
 ];
@@ -136,15 +150,15 @@ const M4=[
 "#.....#....####.#....#.....#",
 "####.###.#......#.###.####.#",
 "#....#...#.####.#...#......#",
-"#.##.#.###.#..#.###.#.##.##",
-"#....#.....#..#.....#......#",
+"#.##.#.###.#..#.###.#.##.###",
+"#....#........#.....#......#",
 "##.####.##.####.##.####.####",
 "#......#..........#........#",
 "####.#.#####..#####.#.####.#",
 "#....#............#.#......#",
 "#.######.##.##.##.######.###",
 "#o.......##....##........o.#",
-"###.####.##########.####.###",
+"###.####.#####.####.####.###",
 "#..........................#",
 "############################"
 ];
@@ -154,41 +168,41 @@ const levels={
   1:{
     name:'Laboratório Abandonado',
     map:M1, theme:{bg:'#06101a',wall:'#10283b',edge:'#1e5a78',inner:'#16344b'},
-    start:[14,16],terminals:[[3,10],[24,10]],special:{type:'key',pos:[14,4]},exit:[14,1],
-    crystals:[[2,2],[25,2],[2,17],[25,17]],
+    start:[14,16],terminals:[[3,10],[24,10]],special:{type:'key',pos:[14,4]},exit:[15,1],
+    crystals:[[2,1],[25,1],[2,18],[25,18]],
     powers:[[7,4,'speed'],[20,4,'shield'],[4,14,'magnet'],[23,14,'freeze'],[9,10,'phase'],[18,10,'teleport']],
     enemies:[['hunter',13,8],['strategist',14,8],['ambusher',13,10],['phase',14,10]],
-    checkpoint:[14,14], boss:true, bossType:'core', bossHp:5, reward:5
+    checkpoint:[15,14], boss:true, bossType:'core', bossHp:5, reward:5
   },
   2:{
     name:'Metrô Espectral',
     map:M2, theme:{bg:'#120d18',wall:'#2d1c32',edge:'#a9502d',inner:'#4b283a'},
-    start:[2,18],terminals:[[5,3],[22,3],[14,15]],special:{type:'battery',pos:[14,9]},exit:[25,18],
+    start:[2,18],terminals:[[4,2],[21,2],[14,15]],special:{type:'battery',pos:[14,9]},exit:[25,18],
     crystals:[[1,1],[26,1],[1,15],[26,15],[14,18]],
     powers:[[9,3,'speed'],[18,3,'shield'],[4,11,'magnet'],[23,11,'freeze'],[10,17,'phase'],[20,17,'teleport']],
-    enemies:[['sentinel',7,7],['sentinel',21,7],['hunter',13,11],['strategist',17,15],['phase',9,15]],
+    enemies:[['sentinel',8,6],['sentinel',21,7],['hunter',13,11],['strategist',17,15],['phase',9,15]],
     checkpoint:[14,13],
     shocks:[[8,5],[19,5],[7,13],[20,13]], boss:false, reward:8
   },
   3:{
     name:'Cidade Neon',
     map:M3, theme:{bg:'#0a0718',wall:'#221338',edge:'#8c3cff',inner:'#173b58'},
-    start:[14,18],terminals:[[3,4],[24,4],[6,13],[21,13]],special:{type:'battery',pos:[14,9]},exit:[14,1],
+    start:[14,18],terminals:[[3,4],[24,4],[5,12],[20,12]],special:{type:'battery',pos:[13,8]},exit:[14,1],
     crystals:[[1,1],[26,1],[1,16],[26,16],[14,4],[14,16]],
-    powers:[[7,3,'speed'],[20,3,'shield'],[5,12,'magnet'],[22,12,'freeze'],[9,16,'phase'],[18,16,'teleport']],
-    enemies:[['stalker',5,7],['stalker',22,7],['sentinel',8,15],['strategist',19,15],['hunter',14,11],['phase',14,5]],
+    powers:[[6,3,'speed'],[21,3,'shield'],[5,12,'magnet'],[22,12,'freeze'],[9,16,'phase'],[18,16,'teleport']],
+    enemies:[['stalker',5,7],['stalker',22,7],['sentinel',8,15],['strategist',19,15],['hunter',13,10],['phase',13,4]],
     checkpoint:[14,14],
-    shocks:[[4,8],[23,8],[8,13],[19,13],[14,6]], boss:true, bossType:'neon', bossHp:7, reward:12
+    shocks:[[4,8],[23,8],[8,13],[19,13],[15,5]], boss:true, bossType:'neon', bossHp:7, reward:12
   },
   4:{
     name:'Ruínas do Vazio',
     map:M4, theme:{bg:'#070713',wall:'#18182f',edge:'#5963e8',inner:'#35265b'},
-    start:[14,18],terminals:[[3,3],[24,3],[5,14],[22,14]],special:{type:'battery',pos:[14,8]},exit:[14,1],
-    crystals:[[1,1],[26,1],[1,16],[25,16],[8,10],[20,10],[14,17]],
-    powers:[[7,4,'speed'],[21,4,'shield'],[4,12,'magnet'],[23,12,'freeze'],[9,16,'phase'],[19,16,'teleport']],
-    enemies:[['voidweaver',5,6],['voidweaver',22,6],['voidweaver',14,12],['stalker',8,15],['sentinel',20,15],['strategist',14,5]],
+    start:[14,18],terminals:[[3,3],[24,2],[4,13],[22,14]],special:{type:'battery',pos:[13,7]},exit:[14,1],
+    crystals:[[1,1],[26,1],[1,16],[25,16],[8,10],[19,10],[14,18]],
+    powers:[[7,4,'speed'],[22,4,'shield'],[4,12,'magnet'],[23,12,'freeze'],[8,16,'phase'],[19,16,'teleport']],
+    enemies:[['voidweaver',5,6],['voidweaver',22,6],['voidweaver',14,12],['stalker',8,15],['sentinel',19,14],['strategist',14,5]],
     checkpoint:[14,15],
-    shocks:[[6,8],[21,8],[10,13],[18,13]], boss:true, bossType:'abyss', bossHp:9, reward:16
+    shocks:[[6,8],[21,8],[9,12],[17,12]], boss:true, bossType:'abyss', bossHp:9, reward:16
   }
 };
 
@@ -219,34 +233,45 @@ function persist(){
 
 let currentLevelId=1,level=levels[1],map=level.map.map(r=>r.split(''));
 let state,player,enemies,frags,crystals,powers,terminals,specialItem,exitDoor,boss,checkpoint,shocks;
-let raf,last=0,running=false,paused=false,menuScreen='home',hitLock=0,toastTimer=0;
+let raf,last=0,running=false,paused=false,menuScreen='home',hitLock=0,toastTimer=0,runId=0;
 
 function reset(levelId=currentLevelId){
-  currentLevelId=levelId;level=levels[levelId];map=level.map.map(r=>r.padEnd(COLS,'#').slice(0,COLS).split(''));
+  currentLevelId=levelId;
+  level=levels[levelId];
+  map=level.map.map(r=>r.padEnd(COLS,'#').slice(0,COLS).split(''));
+
   const startNow=performance.now();
   state={score:0,lives:3,combo:1,comboUntil:0,remaining:0,activePower:null,powerUntil:0,freezeUntil:0,terminals:0,hasSpecial:false,bossStarted:false,bossDefeated:false,startTime:startNow,kills:0,rareDrops:0,
-    playerReleaseAt:startNow+3000,enemiesReleaseAt:startNow+8000,playerReleased:false,enemiesReleased:false};
+    playerReleaseAt:startNow+3000,enemiesReleaseAt:startNow+8000,playerReleased:false,enemiesReleased:false,resultShown:false,finishAt:0};
+
   player={x:0,y:0,dir:{x:-1,y:0},moveDir:{x:0,y:0},queuedDir:{x:0,y:0},speed:120*(1+save.upgrades.speed*.04),anim:'idle',shield:save.upgrades.shield>0,dashCd:0,overdriveUntil:0,skillCd:0};
-  const safeStart=nearestWalkableTile(level.start[0],level.start[1]);
-  placeOnWalkable(player,safeStart.x,safeStart.y);
+  placeOnWalkable(player,level.start[0],level.start[1]);
+
   frags=[];crystals=[];powers=[];enemies=[];
-  terminals=level.terminals.map(([x,y])=>({x:x*T+T/2,y:y*T+T/2,on:false}));
-  specialItem={x:level.special.pos[0]*T+T/2,y:level.special.pos[1]*T+T/2,on:true,type:level.special.type};
-  exitDoor={x:level.exit[0]*T+T/2,y:level.exit[1]*T+T/2,open:false};
-  checkpoint={x:level.checkpoint[0]*T+T/2,y:level.checkpoint[1]*T+T/2,on:false,spawn:{x:player.x,y:player.y}};
-  shocks=(level.shocks||[]).map(([x,y],i)=>({x:x*T+T/2,y:y*T+T/2,phase:i*700}));
-  boss={x:14*T,y:9*T,hp:level.bossHp||0,maxHp:level.bossHp||0,state:'idle',nextAttack:0,dead:!level.boss,invuln:0,type:level.bossType||'core'};
+  terminals=level.terminals.map(([x,y])=>makeWalkablePoint(x,y,{on:false}));
+  specialItem=makeWalkablePoint(level.special.pos[0],level.special.pos[1],{on:true,type:level.special.type});
+  exitDoor=makeWalkablePoint(level.exit[0],level.exit[1],{open:false});
+  checkpoint=makeWalkablePoint(level.checkpoint[0],level.checkpoint[1],{on:false});
+  checkpoint.spawn={x:player.x,y:player.y};
+  shocks=(level.shocks||[]).map(([x,y],i)=>makeWalkablePoint(x,y,{phase:i*700}));
+
+  boss=makeWalkablePoint(14,9,{hp:level.bossHp||0,maxHp:level.bossHp||0,state:'idle',nextAttack:0,dead:!level.boss,invuln:0,type:level.bossType||'core',dir:{x:0,y:0}});
 
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
     const c=map[y][x];
-    if(c==='.'||c==='o'){frags.push({x:x*T+T/2,y:y*T+T/2,on:true,big:c==='o'});state.remaining++}
+    if(c==='.'||c==='o'){
+      frags.push({x:x*T+T/2,y:y*T+T/2,on:true,big:c==='o'});
+      state.remaining++;
+    }
   }
-  level.crystals.forEach(([x,y])=>crystals.push({x:x*T+T/2,y:y*T+T/2,on:true}));
-  level.powers.forEach(([x,y,t])=>powers.push({x:x*T+T/2,y:y*T+T/2,type:t,on:true}));
+
+  level.crystals.forEach(([x,y])=>crystals.push(makeWalkablePoint(x,y,{on:true})));
+  level.powers.forEach(([x,y,t])=>powers.push(makeWalkablePoint(x,y,{type:t,on:true})));
   level.enemies.forEach(([type,x,y],i)=>{
-    const pos=nearestWalkableTile(x,y);
-    enemies.push({type,x:pos.x*T+T/2,y:pos.y*T+T/2,dir:i%2?{x:1,y:0}:{x:-1,y:0},speed:type==='sentinel'?92:type==='voidweaver'?86:74+i*4,dead:0});
+    const pos=makeWalkablePoint(x,y,{type,dir:i%2?{x:1,y:0}:{x:-1,y:0},speed:type==='sentinel'?92:type==='voidweaver'?86:74+i*4,dead:0});
+    enemies.push(pos);
   });
+
   $('#levelLabel').textContent=`FASE ${levelId} — ${level.name}`;
   $('#objectiveText').textContent='Colete os fragmentos e cumpra os objetivos da área.';
   $('#checkpointText').textContent='Nenhum checkpoint ativo.';
@@ -289,10 +314,10 @@ function snapIfClose(obj){
   if(alignedToGrid(obj.y,5))obj.y=tileCenter(obj.y);
 }
 function validDirsAt(x,y,r=11){
-  const step=4;
+  const tx=Math.round((x-T/2)/T),ty=Math.round((y-T/2)/T);
   return [
     {x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}
-  ].filter(d=>canMove(x,y,d.x*step,d.y*step,r));
+  ].filter(d=>isWalkableTile(tx+d.x,ty+d.y));
 }
 const near=(a,b,d=22)=>Math.hypot(a.x-b.x,a.y-b.y)<d;
 
@@ -314,8 +339,23 @@ function nearestWalkableTile(tx,ty,maxRadius=6){
 }
 function placeOnWalkable(entity,tx,ty){
   const p=nearestWalkableTile(tx,ty);
-  entity.x=p.x*T+T/2;entity.y=p.y*T+T/2;
+  entity.x=p.x*T+T/2;entity.y=p.y*T+T/2;entity._centerLock=null;
   return p;
+}
+function makeWalkablePoint(tx,ty,extra={}){
+  const p=nearestWalkableTile(tx,ty);
+  return Object.assign({x:p.x*T+T/2,y:p.y*T+T/2},extra);
+}
+function validateLevelConfiguration(){
+  const points=[
+    ['player',level.start],['special',level.special.pos],['exit',level.exit],['checkpoint',level.checkpoint],
+    ...level.terminals.map(p=>['terminal',p]),...level.crystals.map(p=>['crystal',p]),
+    ...level.powers.map(p=>['power',p]),...level.enemies.map(p=>['enemy',[p[1],p[2]]]),
+    ...(level.shocks||[]).map(p=>['shock',p])
+  ];
+  const invalid=points.filter(([,p])=>!isWalkableTile(p[0],p[1]));
+  if(invalid.length)console.warn('[Maze Hunter] coordenadas inválidas corrigidas automaticamente:',invalid);
+  return invalid.length===0;
 }
 function entityTile(entity){
   return {x:Math.round((entity.x-T/2)/T),y:Math.round((entity.y-T/2)/T)};
@@ -333,6 +373,32 @@ function canEnterFrom(entity,dir){
   const t=entityTile(entity);
   return isWalkableTile(t.x+dir.x,t.y+dir.y);
 }
+function moveWithSubsteps(entity,dir,distance,radius,onCenter){
+  if(distance<=0)return {moved:false,blocked:false};
+  let remain=distance,moved=false,currentDir=dir||{x:0,y:0};
+  while(remain>0){
+    const step=Math.min(1.8,remain);
+    if(!atTileCenter(entity,3))entity._centerLock=null;
+    if(atTileCenter(entity,2.1)){
+      const tile=entityTile(entity),centerKey=`${tile.x},${tile.y}`;
+      if(entity._centerLock!==centerKey){
+        centerEntity(entity);
+        entity._centerLock=centerKey;
+        if(onCenter)onCenter();
+      }
+      currentDir=entity.moveDir||entity.dir||currentDir;
+    }
+    if(!currentDir||(!currentDir.x&&!currentDir.y))break;
+    const nx=entity.x+currentDir.x*step,ny=entity.y+currentDir.y*step;
+    if(circleHitsWall(nx,ny,radius)){
+      if(atTileCenter(entity,5))centerEntity(entity);
+      return {moved,blocked:true};
+    }
+    entity.x=nx;entity.y=ny;moved=true;remain-=step;
+  }
+  return {moved,blocked:false};
+}
+
 
 
 
@@ -408,25 +474,47 @@ function updateObjectiveState(){
   if(state.remaining>0)$('#objectiveText').textContent=`Colete todos os fragmentos restantes: ${state.remaining}.`;
   else if(state.terminals<terminals.length)$('#objectiveText').textContent=`Ative os terminais: ${state.terminals}/${terminals.length}.`;
   else if(!state.hasSpecial)$('#objectiveText').textContent=level.special.type==='battery'?'Encontre a Bateria Espectral.':'Encontre a Chave do Núcleo.';
-  else if(level.boss&&!state.bossStarted)$('#objectiveText').textContent='Vá até o portão para despertar o Core Warden.';
+  else if(level.boss&&!state.bossStarted)$('#objectiveText').textContent='Vá até o portão para despertar o guardião desta fase.';
   else if(level.boss&&!state.bossDefeated)$('#objectiveText').textContent=boss.type==='neon'?'Use Overdrive para romper o escudo do Neon Overmind.':boss.type==='abyss'?'Use Overdrive e EMP Pulse para expor o Abyss Engine.':'Use Overdrive para causar dano ao Core Warden.';
   else $('#objectiveText').textContent='Alcance a saída para concluir a fase.';
 }
 
 function startBoss(){
-  state.bossStarted=true;boss.x=14*T;boss.y=9*T;boss.hp=boss.maxHp;boss.dead=false;boss.nextAttack=performance.now()+1000;
+  state.bossStarted=true;
+  placeOnWalkable(boss,14,9);
+  boss.hp=boss.maxHp;boss.dead=false;boss.nextAttack=performance.now()+1000;boss.dir={x:0,y:0};
   showToast(boss.type==='neon'?'NEON OVERMIND DESPERTOU':boss.type==='abyss'?'ABYSS ENGINE ATIVADO':'CORE WARDEN DESPERTOU','warn');
+}
+function chooseBossDir(){
+  const dirs=validDirsAt(boss.x,boss.y,13);
+  if(!dirs.length)return {x:0,y:0};
+  dirs.sort((a,b)=>{
+    const da=Math.abs((boss.x+a.x*T)-player.x)+Math.abs((boss.y+a.y*T)-player.y);
+    const db=Math.abs((boss.x+b.x*T)-player.x)+Math.abs((boss.y+b.y*T)-player.y);
+    return da-db;
+  });
+  return dirs[0];
 }
 function updateBoss(dt,now){
   if(!level.boss||!state.bossStarted||boss.dead)return;
   boss.state='idle';
-  const dx=player.x-boss.x,dy=player.y-boss.y,dist=Math.hypot(dx,dy)||1;
-  if(dist>75){boss.x+=dx/dist*58*dt;boss.y+=dy/dist*58*dt}
+  const decide=()=>{
+    const dirs=validDirsAt(boss.x,boss.y,13);
+    const forwardOK=dirs.some(d=>d.x===boss.dir.x&&d.y===boss.dir.y);
+    if(!forwardOK||dirs.length>=3||(!boss.dir.x&&!boss.dir.y))boss.dir=chooseBossDir();
+  };
+  const res=moveWithSubsteps(boss,boss.dir,58*dt,13,decide);
+  if(res.blocked)boss.dir=chooseBossDir();
+
   if(now>boss.nextAttack){boss.state='attack';boss.nextAttack=now+1500}
   if(near(player,boss,42)){
     if(player.overdriveUntil>now&&now>boss.invuln){
-      boss.hp--;boss.invuln=now+900;boss.state='hurt';state.score+=750;state.combo=Math.min(16,state.combo*2);
-      if(boss.hp<=0){boss.dead=true;state.bossDefeated=true;state.score+=3000;save.crystals+=8;persist();showToast(boss.type==='neon'?'Neon Overmind derrotado':boss.type==='abyss'?'Abyss Engine destruído':'Core Warden derrotado');setTimeout(completeLevel,650)}
+      boss.hp--;boss.invuln=now+900;boss.state='hurt';state.score+=750;triggerCombo(now);
+      if(boss.hp<=0){
+        boss.dead=true;state.bossDefeated=true;state.score+=3000;save.crystals+=8;persist();
+        showToast(boss.type==='neon'?'Neon Overmind derrotado':boss.type==='abyss'?'Abyss Engine destruído':'Core Warden derrotado');
+        state.finishAt=now+650;
+      }
     }else if(now>boss.invuln-700)hit();
   }
 }
@@ -435,7 +523,11 @@ function activatePower(type){
   state.activePower=type;state.powerUntil=performance.now()+7000;
   if(type==='shield')player.shield=true;
   if(type==='freeze')state.freezeUntil=performance.now()+6500;
-  if(type==='teleport'){player.x=checkpoint.on?checkpoint.spawn.x:level.start[0]*T+T/2;player.y=checkpoint.on?checkpoint.spawn.y:level.start[1]*T+T/2}
+  if(type==='teleport'){
+    if(checkpoint.on){player.x=checkpoint.spawn.x;player.y=checkpoint.spawn.y}
+    else placeOnWalkable(player,level.start[0],level.start[1]);
+    player.moveDir={x:0,y:0};player.queuedDir={x:0,y:0};
+  }
   showToast(`Power-up: ${type.toUpperCase()}`);
 }
 
@@ -471,6 +563,15 @@ function usePulse(now){
   if(level.boss&&state.bossStarted&&!boss.dead&&Math.hypot(boss.x-player.x,boss.y-player.y)<=radius){
     boss.invuln=Math.max(0,now-1);
     boss.state='hurt';
+    boss.nextAttack=Math.max(boss.nextAttack,now+1800);
+    if(player.overdriveUntil>now){
+      boss.hp--;state.score+=500;triggerCombo(now);boss.invuln=now+900;
+      if(boss.hp<=0){
+        boss.dead=true;state.bossDefeated=true;state.score+=3000;save.crystals+=8;persist();
+        showToast(boss.type==='neon'?'Neon Overmind derrotado':boss.type==='abyss'?'Abyss Engine destruído':'Core Warden derrotado');
+        state.finishAt=now+650;
+      }
+    }
   }
   const fx=$('#pulseFx');
   if(fx){
@@ -502,83 +603,93 @@ function gamepadVector(){
   return {x,y,dash:!!(gp.buttons?.[0]?.pressed||gp.buttons?.[1]?.pressed),skill:!!(gp.buttons?.[2]?.pressed||gp.buttons?.[3]?.pressed)};
 }
 
-function updatePlayer(dt,now){
-  if(now<state.playerReleaseAt){
-    player.anim='idle';
-    player.moveDir={x:0,y:0};
-    return;
-  }
-
+function requestedDirection(){
   let want={x:0,y:0};
-  if(keys['arrowleft']||keys['a']||touch.left)want={x:-1,y:0};
-  else if(keys['arrowright']||keys['d']||touch.right)want={x:1,y:0};
-  else if(keys['arrowup']||keys['w']||touch.up)want={x:0,y:-1};
-  else if(keys['arrowdown']||keys['s']||touch.down)want={x:0,y:1};
+  if(keys.arrowleft||keys.a||touch.left)want={x:-1,y:0};
+  else if(keys.arrowright||keys.d||touch.right)want={x:1,y:0};
+  else if(keys.arrowup||keys.w||touch.up)want={x:0,y:-1};
+  else if(keys.arrowdown||keys.s||touch.down)want={x:0,y:1};
 
   const gp=gamepadVector();
   if(!want.x&&!want.y){
     if(Math.abs(gp.x)>.35&&Math.abs(gp.x)>=Math.abs(gp.y))want={x:Math.sign(gp.x),y:0};
     else if(Math.abs(gp.y)>.35)want={x:0,y:Math.sign(gp.y)};
   }
+  return {want,gp};
+}
+
+function updatePlayer(dt,now){
+  const {want,gp}=requestedDirection();
   if(want.x||want.y)player.queuedDir=want;
+  if(now<state.playerReleaseAt){
+    player.anim='idle';
+    player.moveDir={x:0,y:0};
+    return;
+  }
 
-  const skillPressed=keys['e']||touch.skill||gp.skill;
-  if(skillPressed)usePulse(now);
+  if(keys['e']||touch.skill||gp.skill)usePulse(now);
 
-  const dashPressed=keys[' ']||touch.dash||gp.dash;
   let speed=player.speed*(state.activePower==='speed'?1.45:1);
-  if(dashPressed&&now>player.dashCd){
+  const dashing=(keys.space||touch.dash||gp.dash)&&now>player.dashCd;
+  if(dashing){
     speed*=2.2;
     player.dashCd=now+Math.max(550,1200-save.upgrades.dash*180);
     player.anim='dash';
   }
 
-  // Direction decisions only at tile centers. This removes corner-locking.
-  if(atTileCenter(player,3.0)){
+  // Reverse immediately inside a corridor.
+  const q=player.queuedDir||{x:0,y:0};
+  if(q.x===-player.moveDir.x&&q.y===-player.moveDir.y&&(q.x||q.y)){
+    player.moveDir={x:q.x,y:q.y};player.dir={x:q.x,y:q.y};
+  }
+  if((q.x||q.y)&&!(player.moveDir.x||player.moveDir.y)&&atTileCenter(player,2.1)&&canEnterFrom(player,q)){
     centerEntity(player);
-    const q=player.queuedDir||{x:0,y:0};
-    if((q.x||q.y)&&canEnterFrom(player,q)){
-      player.moveDir={x:q.x,y:q.y};
-      player.dir={x:q.x,y:q.y};
+    player.moveDir={x:q.x,y:q.y};player.dir={x:q.x,y:q.y};
+  }
+
+  const onCenter=()=>{
+    const queued=player.queuedDir||{x:0,y:0};
+    if((queued.x||queued.y)&&canEnterFrom(player,queued)){
+      player.moveDir={x:queued.x,y:queued.y};
+      player.dir={x:queued.x,y:queued.y};
     }else if((player.moveDir.x||player.moveDir.y)&&!canEnterFrom(player,player.moveDir)){
       player.moveDir={x:0,y:0};
     }
+  };
+
+  const phasing=state.activePower==='phase';
+  let result;
+  if(phasing){
+    const distance=speed*dt,d=player.moveDir;
+    if(d&&(d.x||d.y)){
+      player.x+=d.x*distance;player.y+=d.y*distance;
+      result={moved:true,blocked:false};
+    }else result={moved:false,blocked:false};
+  }else{
+    result=moveWithSubsteps(player,player.moveDir,speed*dt,10,onCenter);
   }
-
-  // Immediate reversal is always legal in the same corridor.
-  const q=player.queuedDir;
-  if(q&&(q.x===-player.moveDir.x&&q.y===-player.moveDir.y)){
-    player.moveDir={x:q.x,y:q.y};
-    player.dir={x:q.x,y:q.y};
-  }
-
-  const step=speed*dt;
-  if(player.moveDir.x||player.moveDir.y){
-    let nx=player.x+player.moveDir.x*step;
-    let ny=player.y+player.moveDir.y*step;
-
-    // Never cross into a wall tile. Clamp on the current tile center when blocked.
-    if(!circleHitsWall(nx,ny,10)){
-      player.x=nx;player.y=ny;
-      if(player.anim!=='dash')player.anim='move';
-    }else{
-      centerEntity(player);
-      player.moveDir={x:0,y:0};
-      player.anim='idle';
-    }
-  }else if(player.anim!=='dash'){
-    player.anim='idle';
+  if(result.blocked){
+    if(atTileCenter(player,6))centerEntity(player);
+    player.moveDir={x:0,y:0};player._centerLock=null;
   }
 
   if(player.overdriveUntil>now)player.anim='overdrive';
+  else if(!dashing)player.anim=result.moved?'move':'idle';
 
   if(player.x<0)player.x=W-1;
   if(player.x>=W)player.x=1;
   player.y=Math.max(T/2,Math.min(H-T/2,player.y));
-
-  if(state.powerUntil<now)state.activePower=null;
+  if(state.powerUntil<now){
+    const expired=state.activePower;
+    state.activePower=null;
+    if(expired==='phase'&&circleHitsWall(player.x,player.y,10)){
+      const t=entityTile(player);placeOnWalkable(player,t.x,t.y);
+      player.moveDir={x:0,y:0};player.queuedDir={x:0,y:0};
+    }
+  }
   collect();
 }
+
 function chooseEnemyDir(e){
   const dirs=validDirsAt(e.x,e.y,10);
   if(!dirs.length)return {x:0,y:0};
@@ -651,23 +762,17 @@ function updateEnemies(dt,now){
   for(const e of enemies){
     if(e.dead>now||state.freezeUntil>now)continue;
 
-    if(atTileCenter(e,3.0)){
-      centerEntity(e);
+    const decide=()=>{
       const dirs=validDirsAt(e.x,e.y,10);
       const forwardOK=dirs.some(d=>d.x===e.dir.x&&d.y===e.dir.y);
       const intersection=dirs.length>=3;
-      if(!forwardOK||intersection||Math.random()<0.035){
-        e.dir=chooseEnemyDir(e);
-      }
+      if(!forwardOK||intersection||Math.random()<0.04)e.dir=chooseEnemyDir(e);
       if(!e.dir||(!e.dir.x&&!e.dir.y))e.dir=chooseEnemyDir(e);
-    }
+    };
 
-    const step=e.speed*dt;
-    const nx=e.x+e.dir.x*step,ny=e.y+e.dir.y*step;
-    if(!circleHitsWall(nx,ny,10)){
-      e.x=nx;e.y=ny;
-    }else{
-      centerEntity(e);
+    const result=moveWithSubsteps(e,e.dir,e.speed*dt,10,decide);
+    if(result.blocked){
+      if(atTileCenter(e,6))centerEntity(e);
       e.dir=chooseEnemyDir(e);
     }
 
@@ -676,18 +781,16 @@ function updateEnemies(dt,now){
 
     if(near(player,e,24)){
       if(player.overdriveUntil>now){
-        e.dead=now+3500;
-        state.kills++;
-        triggerCombo(now);
+        e.dead=now+3500;state.kills++;triggerCombo(now);
         state.score+=Math.round(200*state.combo*(1+save.upgrades.combo*.10));
         rollRareDrop(e.x,e.y);
       }else if(player.shield){
-        player.shield=false;
-        e.dead=now+1800;
+        player.shield=false;e.dead=now+1800;
       }else hit();
     }
   }
 }
+
 function updateShocks(now){
   if(!shocks.length)return;
   for(const s of shocks){
@@ -699,29 +802,40 @@ function updateShocks(now){
 function hit(){
   const now=performance.now();if(now<hitLock)return;hitLock=now+1500;
   if(player.shield){player.shield=false;showToast('Escudo quebrado','warn');return}
-  state.lives--;state.combo=1;player.anim='hurt';
-  player.x=checkpoint.on?checkpoint.spawn.x:level.start[0]*T+T/2;
-  player.y=checkpoint.on?checkpoint.spawn.y:level.start[1]*T+T/2;
+  state.lives--;state.combo=1;state.comboUntil=0;player.anim='hurt';
+  if(checkpoint.on){
+    placeOnWalkable(player,entityTile(checkpoint).x,entityTile(checkpoint).y);
+  }else{
+    placeOnWalkable(player,level.start[0],level.start[1]);
+  }
   player.moveDir={x:0,y:0};player.queuedDir={x:0,y:0};
+  player.overdriveUntil=0;
   if(state.lives<=0)gameOver();
 }
 
 function completeLevel(){
-  if(!running&&menuScreen==='result')return;
-  running=false;paused=false;
+  if(state.resultShown)return;
+  state.resultShown=true;running=false;paused=false;
   save.completed[currentLevelId]=true;
   const completionReward=level.reward+save.upgrades.crystal;
-  save.crystals+=completionReward;
-  persist();
+  save.crystals+=completionReward;persist();
   $('#pauseBtn')?.classList.add('hidden');
+
+  const elapsed=Math.max(0,(performance.now()-state.startTime)/1000);
+  const rankScore=state.score+state.lives*1200-Math.floor(elapsed*8);
+  let rank='C';
+  if(rankScore>=9000)rank='S';else if(rankScore>=6500)rank='A';else if(rankScore>=4000)rank='B';
+
   $('#resultTitle').textContent=`FASE ${currentLevelId} CONCLUÍDA`;
-  $('#resultText').textContent=`${level.name}\nPontuação: ${state.score}\nRecompensa: +${completionReward} cristais`;
+  $('#resultText').innerHTML=`${level.name}<br><span class="rank-chip">RANK ${rank}</span><br>Pontuação: ${state.score}<br>Vidas: ${state.lives}<br>Tempo: ${elapsed.toFixed(1)}s<br>Eliminações: ${state.kills}<br>Drops raros: ${state.rareDrops}<br>Recompensa: +${completionReward} cristais`;
   const nextBtn=document.querySelector('[data-action="next"]');
   if(nextBtn)nextBtn.style.display=levels[currentLevelId+1]?'':'none';
   showMenuScreen('result');
 }
+
 function gameOver(){
-  running=false;paused=false;$('#pauseBtn')?.classList.add('hidden');
+  if(state.resultShown)return;
+  state.resultShown=true;running=false;paused=false;$('#pauseBtn')?.classList.add('hidden');
   $('#resultTitle').textContent='GAME OVER';
   $('#resultText').textContent=`Fase ${currentLevelId} — ${level.name}\nPontuação: ${state.score}\nO checkpoint continua válido apenas nesta tentativa.`;
   const nextBtn=document.querySelector('[data-action="next"]');if(nextBtn)nextBtn.style.display='none';
@@ -810,24 +924,27 @@ function draw(now){
   }
 }
 
-function loop(now){
-  if(!running)return;
+function loop(now,sessionId=runId){
+  if(!running||sessionId!==runId)return;
   const dt=Math.min(.033,(now-last)/1000||0);last=now;
   updateReleaseCountdown(now);updatePlayer(dt,now);updateEnemies(dt,now);if(now>=state.enemiesReleaseAt)updateBoss(dt,now);if(now>=state.playerReleaseAt)updateShocks(now);updateCombo(now);updateHud();draw(now);
-  raf=requestAnimationFrame(loop);
+  if(state.finishAt&&now>=state.finishAt&&!state.resultShown){completeLevel();return}
+  raf=requestAnimationFrame(t=>loop(t,sessionId));
 }
 
 function renderUpgrades(){
   $('#wallet').textContent=save.crystals;
   const list=$('#upgradeList');if(!list)return;
   list.innerHTML=upgradeDefs.map(u=>{
-    const lv=save.upgrades[u.id]||0,cost=u.base*(lv+1),max=lv>=u.max;
-    return `<div class="upgrade"><div><b>${u.name}</b> <span class="badge">Nv. ${lv}/${u.max}</span><small>${u.desc}</small></div><button data-buy="${u.id}" ${max?'disabled':''}>${max?'MAX':'💎 '+cost}</button></div>`;
+    const lv=save.upgrades[u.id]||0,cost=u.base*(lv+1),max=lv>=u.max,locked=(u.id==='pulsecd'&&!save.upgrades.pulse);
+    const label=max?'MAX':locked?'REQUER EMP':'💎 '+cost;
+    return `<div class="upgrade"><div><b>${u.name}</b> <span class="badge">Nv. ${lv}/${u.max}</span><small>${u.desc}</small></div><button data-buy="${u.id}" ${(max||locked)?'disabled':''}>${label}</button></div>`;
   }).join('');
   document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>buy(b.dataset.buy));
 }
 function buy(id){
   const u=upgradeDefs.find(x=>x.id===id),lv=save.upgrades[id]||0,cost=u.base*(lv+1);
+  if(id==='pulsecd'&&!save.upgrades.pulse)return;
   if(lv<u.max&&save.crystals>=cost){save.crystals-=cost;save.upgrades[id]++;persist()}
 }
 function renderBuild(){
@@ -871,16 +988,37 @@ function showMenuScreen(name){
 function hideMenu(){$('#mainMenu').classList.add('hidden')}
 
 function startLevel(id){
+  runId++;
+  if(raf)cancelAnimationFrame(raf);
   reset(id);
   const now=performance.now();
-  state.startTime=now;
+  state.startTime=now+3000;
   state.playerReleaseAt=now+3000;
   state.enemiesReleaseAt=now+8000;
   state.playerReleased=false;
   state.enemiesReleased=false;
   running=true;paused=false;last=now;hideMenu();$('#pauseBtn').classList.remove('hidden');
   updateReleaseCountdown(now);
-  requestAnimationFrame(loop);
+  validateLevelConfiguration();
+  const sessionId=runId;
+  raf=requestAnimationFrame(t=>loop(t,sessionId));
+}
+function shiftFutureTimers(delta){
+  const shift=v=>v&&v>0?v+delta:v;
+  state.playerReleaseAt=shift(state.playerReleaseAt);
+  state.enemiesReleaseAt=shift(state.enemiesReleaseAt);
+  state.powerUntil=shift(state.powerUntil);
+  state.freezeUntil=shift(state.freezeUntil);
+  state.comboUntil=shift(state.comboUntil);
+  state.finishAt=shift(state.finishAt);
+  player.overdriveUntil=shift(player.overdriveUntil);
+  player.dashCd=shift(player.dashCd);
+  player.skillCd=shift(player.skillCd);
+  hitLock=shift(hitLock);
+  boss.nextAttack=shift(boss.nextAttack);
+  boss.invuln=shift(boss.invuln);
+  for(const e of enemies)if(e.dead>0)e.dead+=delta;
+  for(const s of shocks)s.phase-=delta;
 }
 let pauseStartedAt=0;
 function pauseGame(){
@@ -892,12 +1030,17 @@ function resumeGame(){
   if(!paused)return;
   const now=performance.now();
   const pausedFor=Math.max(0,now-pauseStartedAt);
-  state.playerReleaseAt+=pausedFor;
-  state.enemiesReleaseAt+=pausedFor;
+  shiftFutureTimers(pausedFor);
   state.startTime+=pausedFor;
-  paused=false;running=true;last=now;hideMenu();$('#pauseBtn').classList.remove('hidden');requestAnimationFrame(loop)
+  paused=false;running=true;last=now;hideMenu();$('#pauseBtn').classList.remove('hidden');
+  const sessionId=runId;
+  raf=requestAnimationFrame(t=>loop(t,sessionId))
 }
-function quitToMenu(){running=false;paused=false;$('#pauseBtn').classList.add('hidden');showMenuScreen('home');draw(performance.now())}
+function quitToMenu(){
+  runId++;
+  if(raf)cancelAnimationFrame(raf);
+  running=false;paused=false;$('#pauseBtn').classList.add('hidden');showMenuScreen('home');draw(performance.now())
+}
 function restartGame(){startLevel(currentLevelId)}
 
 function setupMenu(){
@@ -921,7 +1064,8 @@ function setupMenu(){
     const k=btn.dataset.touch;
     const on=e=>{e.preventDefault();touch[k]=true};
     const off=e=>{e.preventDefault();touch[k]=false};
-    btn.addEventListener('pointerdown',on);btn.addEventListener('pointerup',off);btn.addEventListener('pointercancel',off);btn.addEventListener('pointerleave',off);
+    btn.addEventListener('pointerdown',e=>{on(e);try{btn.setPointerCapture(e.pointerId)}catch{}});
+    btn.addEventListener('pointerup',off);btn.addEventListener('pointercancel',off);
   });
 }
 

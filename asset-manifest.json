@@ -1,5 +1,5 @@
 {
-  "version": "0.6.1",
+  "version": "0.6.4",
   "name": "Maze Hunter: Core Shift",
   "assets_format": "webp",
   "player_animations": {
@@ -14,7 +14,10 @@
     "hunter",
     "strategist",
     "ambusher",
-    "phase"
+    "phase",
+    "sentinel",
+    "stalker",
+    "voidweaver"
   ],
   "powerups": [
     "speed",
@@ -60,7 +63,31 @@
     "validated_enemy_spawns",
     "enemy_wall_respect",
     "3s_player_release_countdown",
-    "5s_enemy_release_after_player"
+    "5s_enemy_release_after_player",
+    "substep_grid_movement",
+    "boss_wall_collision",
+    "validate_all_interactive_spawns",
+    "safe_respawn",
+    "result_guard",
+    "restore_stage_rank",
+    "neighbor_tile_direction_validation",
+    "correct_invalid_level_coordinates",
+    "substep_direction_refresh",
+    "level4_unreachable_fragments",
+    "pause_timer_freeze",
+    "boss_timeout_race",
+    "phase_power_functional",
+    "safe_teleport",
+    "emp_boss_interaction",
+    "stuck_input_blur",
+    "emp_upgrade_dependency",
+    "boss_finish_respects_pause",
+    "direct_file_script_boot",
+    "tile_center_lock",
+    "queued_countdown_input",
+    "single_animation_loop",
+    "touch_pointer_capture",
+    "parallel_asset_loading"
   ],
   "menu_screens": [
     "home",
