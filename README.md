@@ -1,4 +1,4 @@
-# Maze Hunter: Core Shift v0.5.0
+# Maze Hunter: Core Shift v0.6.0
 
 Protótipo jogável inspirado na lógica de labirintos clássicos, mas com progressão, power-ups de fase e melhorias permanentes.
 
@@ -54,7 +54,7 @@ Controles:
 - novos mundos e tilesets
 
 
-## v0.5.0 — Nova identidade do protagonista
+## v0.6.0 — Nova identidade do protagonista
 - O sprite circular inspirado em Pac-Man foi removido.
 - Novo protagonista original: criatura energética encapuzada, corpo escuro, olhos ciano e aura azul/roxa.
 - Animações WebP independentes: idle (6), movimento (6), dash (5), Overdrive (6), dano (4) e morte (6).
@@ -65,7 +65,7 @@ Controles:
 - Menu inicial agora mostra o novo protagonista.
 
 
-## Novidades v0.5.0
+## Novidades v0.6.0
 - Objetivos múltiplos na Fase 1.
 - 2 terminais interativos.
 - Chave do Núcleo.
@@ -77,7 +77,7 @@ Controles:
 - Novos assets WebP organizados em `assets/sprites/items` e `assets/sprites/bosses`.
 
 
-## Correções e menu v0.5.0
+## Correções e menu v0.6.0
 - Corrigido crash `drawImage`: frames agora são validados antes de desenhar.
 - Fallback visual impede que um asset ausente derrube o jogo.
 - Menu principal completo com Jogar, Núcleo, Equipamentos, Coleção, Opções, Controles e Créditos.
@@ -90,7 +90,7 @@ Controles:
 - Identificação da versão corrigida para 0.3.1.
 
 
-## v0.5.0
+## v0.6.0
 - Seleção de fases real no menu.
 - Fase 2: Metrô Espectral, com mapa próprio e tema visual próprio.
 - Novo inimigo Rail Sentinel com 6 frames WebP.
@@ -106,7 +106,7 @@ Controles:
 - Novos thumbnails WebP para seleção de fases.
 
 
-## v0.5.0 — Correção de movimento e colisão
+## v0.6.0 — Correção de movimento e colisão
 - Reescrita a colisão usando círculo contra tiles sólidos.
 - Player agora usa direção atual + direção enfileirada, permitindo curvas naturais nos corredores.
 - Movimento diagonal removido para evitar travar nas quinas.
@@ -117,7 +117,7 @@ Controles:
 - Reversão e cruzamentos tratados separadamente.
 
 
-## v0.5.0
+## v0.6.0
 - Nova Fase 3: Cidade Neon.
 - Novo inimigo Neon Stalker com 6 frames WebP.
 - Novo boss Neon Overmind com idle, ataque, dano e morte.
@@ -128,3 +128,19 @@ Controles:
 - Combo agora aumenta pontuação com bônus permanente.
 - Recompensa de conclusão pode receber cristais extras por upgrade.
 - Coleção atualizada com Neon Stalker e Neon Overmind.
+
+
+## v0.6.0
+- Nova Fase 4: Ruínas do Vazio.
+- Novo inimigo: Void Weaver, com 6 frames WebP.
+- Novo boss: Abyss Engine, com idle, ataque, dano e morte.
+- Nova habilidade ativa permanente: EMP Pulse.
+- EMP Pulse pode ser desbloqueado e melhorado no Núcleo.
+- Novo upgrade Recarga EMP.
+- Novo upgrade Coletor Raro para aumentar chance de cristais em eliminações.
+- Combo agora possui temporizador real e barra visual.
+- Drops raros de cristais durante combate.
+- Ranking C/B/A/S ao concluir fase.
+- Resultado mostra tempo, vidas, eliminações e drops raros.
+- Favicon agora usa caminho local `./favicon.ico`, compatível com GitHub Pages do projeto.
+- Pacote completo contém todos os assets antigos e novos.

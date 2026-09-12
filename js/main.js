@@ -2,7 +2,7 @@ const C=document.querySelector('#game'),ctx=C.getContext('2d');
 const W=C.width,H=C.height,T=32,COLS=28,ROWS=20;
 const $=s=>document.querySelector(s);
 const keys={};
-const touch={up:false,down:false,left:false,right:false,dash:false};
+const touch={up:false,down:false,left:false,right:false,dash:false,skill:false};
 let gamepadDash=false;
 
 addEventListener('keydown',e=>{
@@ -13,10 +13,10 @@ addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 
 const paths={
   player:{idle:6,move:6,dash:5,overdrive:6,hurt:4,death:6},
-  enemies:{hunter:4,strategist:4,ambusher:4,phase:4,sentinel:6,stalker:6},
+  enemies:{hunter:4,strategist:4,ambusher:4,phase:4,sentinel:6,stalker:6,voidweaver:6},
   powers:['speed','shield','magnet','freeze','phase','teleport']
 };
-const images={player:{},enemies:{},powers:{},fragment:[],crystal:[],key:[],battery:[],terminalOff:[],terminalActive:[],doorLocked:[],doorOpen:[],checkpointOff:[],checkpointOn:[],boss:{idle:[],attack:[],hurt:[],death:[]},boss2:{idle:[],attack:[],hurt:[],death:[]}};
+const images={player:{},enemies:{},powers:{},fragment:[],crystal:[],key:[],battery:[],terminalOff:[],terminalActive:[],doorLocked:[],doorOpen:[],checkpointOff:[],checkpointOn:[],boss:{idle:[],attack:[],hurt:[],death:[]},boss2:{idle:[],attack:[],hurt:[],death:[]},boss3:{idle:[],attack:[],hurt:[],death:[]},pulse:[]};
 
 function loadImage(src){
   return new Promise(resolve=>{
@@ -52,7 +52,9 @@ async function load(){
     for(const s of ['idle','attack','hurt','death']){
       images.boss[s].push(await loadImage(`assets/sprites/bosses/core_warden/${s}/${String(i).padStart(2,'0')}.webp`));
       images.boss2[s].push(await loadImage(`assets/sprites/bosses/neon_overmind/${s}/${String(i).padStart(2,'0')}.webp`));
+      images.boss3[s].push(await loadImage(`assets/sprites/bosses/abyss_engine/${s}/${String(i).padStart(2,'0')}.webp`));
     }
+    images.pulse.push(await loadImage(`assets/sprites/skills/pulse/${String(i).padStart(2,'0')}.webp`));
   }
 }
 
@@ -124,6 +126,30 @@ const M3=[
 ];
 
 
+const M4=[
+"############################",
+"#o....#..............#....o#",
+"#.##..#.####.####.####.#.###",
+"#....##....#......#....##..#",
+"###.....##.#.####.#.##.....#",
+"#.#####.##.#....#.#.##.#####",
+"#.....#....####.#....#.....#",
+"####.###.#......#.###.####.#",
+"#....#...#.####.#...#......#",
+"#.##.#.###.#..#.###.#.##.##",
+"#....#.....#..#.....#......#",
+"##.####.##.####.##.####.####",
+"#......#..........#........#",
+"####.#.#####..#####.#.####.#",
+"#....#............#.#......#",
+"#.######.##.##.##.######.###",
+"#o.......##....##........o.#",
+"###.####.##########.####.###",
+"#..........................#",
+"############################"
+];
+
+
 const levels={
   1:{
     name:'Laboratório Abandonado',
@@ -153,6 +179,16 @@ const levels={
     enemies:[['stalker',5,7],['stalker',22,7],['sentinel',8,15],['strategist',19,15],['hunter',14,11],['phase',14,5]],
     checkpoint:[14,14],
     shocks:[[4,8],[23,8],[8,13],[19,13],[14,6]], boss:true, bossType:'neon', bossHp:7, reward:12
+  },
+  4:{
+    name:'Ruínas do Vazio',
+    map:M4, theme:{bg:'#070713',wall:'#18182f',edge:'#5963e8',inner:'#35265b'},
+    start:[14,18],terminals:[[3,3],[24,3],[5,14],[22,14]],special:{type:'battery',pos:[14,8]},exit:[14,1],
+    crystals:[[1,1],[26,1],[1,16],[25,16],[8,10],[20,10],[14,17]],
+    powers:[[7,4,'speed'],[21,4,'shield'],[4,12,'magnet'],[23,12,'freeze'],[9,16,'phase'],[19,16,'teleport']],
+    enemies:[['voidweaver',5,6],['voidweaver',22,6],['voidweaver',14,12],['stalker',8,15],['sentinel',20,15],['strategist',14,5]],
+    checkpoint:[14,15],
+    shocks:[[6,8],[21,8],[10,13],[18,13]], boss:true, bossType:'abyss', bossHp:9, reward:16
   }
 };
 
@@ -164,14 +200,17 @@ const upgradeDefs=[
  {id:'dash',name:'Dash Adicional',desc:'reduz recarga do dash',max:3,base:180},
  {id:'combo',name:'Núcleo de Combo',desc:'+10% pontos por combo por nível',max:5,base:220},
  {id:'crystal',name:'Sintonia de Cristais',desc:'+1 cristal bônus ao concluir fase por nível',max:3,base:300},
+ {id:'pulse',name:'Módulo EMP Pulse',desc:'desbloqueia habilidade ativa de pulso',max:1,base:350},
+ {id:'pulsecd',name:'Recarga EMP',desc:'-1,2 s de recarga por nível',max:4,base:260},
+ {id:'luck',name:'Coletor Raro',desc:'+5% chance de cristal ao eliminar inimigo',max:4,base:280},
 ];
 
 let save=JSON.parse(localStorage.getItem('mh-core-save')||'null')||{};
 save.crystals=Number(save.crystals||0);
-save.upgrades=Object.assign({speed:0,overdrive:0,magnet:0,shield:0,dash:0,combo:0,crystal:0},save.upgrades||{});
+save.upgrades=Object.assign({speed:0,overdrive:0,magnet:0,shield:0,dash:0,combo:0,crystal:0,pulse:0,pulsecd:0,luck:0},save.upgrades||{});
 save.equipped=Array.isArray(save.equipped)?save.equipped:[];
 save.settings=Object.assign({graphics:'auto',volume:80,reduceFlash:false},save.settings||{});
-save.completed=Object.assign({1:false,2:false,3:false},save.completed||{});
+save.completed=Object.assign({1:false,2:false,3:false,4:false},save.completed||{});
 
 function persist(){
   localStorage.setItem('mh-core-save',JSON.stringify(save));
@@ -184,8 +223,8 @@ let raf,last=0,running=false,paused=false,menuScreen='home',hitLock=0,toastTimer
 
 function reset(levelId=currentLevelId){
   currentLevelId=levelId;level=levels[levelId];map=level.map.map(r=>r.padEnd(COLS,'#').slice(0,COLS).split(''));
-  state={score:0,lives:3,combo:1,remaining:0,activePower:null,powerUntil:0,freezeUntil:0,terminals:0,hasSpecial:false,bossStarted:false,bossDefeated:false};
-  player={x:level.start[0]*T+T/2,y:level.start[1]*T+T/2,dir:{x:-1,y:0},moveDir:{x:0,y:0},queuedDir:{x:0,y:0},speed:120*(1+save.upgrades.speed*.04),anim:'idle',shield:save.upgrades.shield>0,dashCd:0,overdriveUntil:0};
+  state={score:0,lives:3,combo:1,comboUntil:0,remaining:0,activePower:null,powerUntil:0,freezeUntil:0,terminals:0,hasSpecial:false,bossStarted:false,bossDefeated:false,startTime:performance.now(),kills:0,rareDrops:0};
+  player={x:level.start[0]*T+T/2,y:level.start[1]*T+T/2,dir:{x:-1,y:0},moveDir:{x:0,y:0},queuedDir:{x:0,y:0},speed:120*(1+save.upgrades.speed*.04),anim:'idle',shield:save.upgrades.shield>0,dashCd:0,overdriveUntil:0,skillCd:0};
   frags=[];crystals=[];powers=[];enemies=[];
   terminals=level.terminals.map(([x,y])=>({x:x*T+T/2,y:y*T+T/2,on:false}));
   specialItem={x:level.special.pos[0]*T+T/2,y:level.special.pos[1]*T+T/2,on:true,type:level.special.type};
@@ -200,7 +239,7 @@ function reset(levelId=currentLevelId){
   }
   level.crystals.forEach(([x,y])=>crystals.push({x:x*T+T/2,y:y*T+T/2,on:true}));
   level.powers.forEach(([x,y,t])=>powers.push({x:x*T+T/2,y:y*T+T/2,type:t,on:true}));
-  level.enemies.forEach(([type,x,y],i)=>enemies.push({type,x:x*T+T/2,y:y*T+T/2,dir:i%2?{x:1,y:0}:{x:-1,y:0},speed:type==='sentinel'?92:74+i*4,dead:0}));
+  level.enemies.forEach(([type,x,y],i)=>enemies.push({type,x:x*T+T/2,y:y*T+T/2,dir:i%2?{x:1,y:0}:{x:-1,y:0},speed:type==='sentinel'?92:type==='voidweaver'?86:74+i*4,dead:0}));
   $('#levelLabel').textContent=`FASE ${levelId} — ${level.name}`;
   $('#objectiveText').textContent='Colete os fragmentos e cumpra os objetivos da área.';
   $('#checkpointText').textContent='Nenhum checkpoint ativo.';
@@ -294,13 +333,13 @@ function updateObjectiveState(){
   else if(state.terminals<terminals.length)$('#objectiveText').textContent=`Ative os terminais: ${state.terminals}/${terminals.length}.`;
   else if(!state.hasSpecial)$('#objectiveText').textContent=level.special.type==='battery'?'Encontre a Bateria Espectral.':'Encontre a Chave do Núcleo.';
   else if(level.boss&&!state.bossStarted)$('#objectiveText').textContent='Vá até o portão para despertar o Core Warden.';
-  else if(level.boss&&!state.bossDefeated)$('#objectiveText').textContent=boss.type==='neon'?'Use Overdrive para romper o escudo do Neon Overmind.':'Use Overdrive para causar dano ao Core Warden.';
+  else if(level.boss&&!state.bossDefeated)$('#objectiveText').textContent=boss.type==='neon'?'Use Overdrive para romper o escudo do Neon Overmind.':boss.type==='abyss'?'Use Overdrive e EMP Pulse para expor o Abyss Engine.':'Use Overdrive para causar dano ao Core Warden.';
   else $('#objectiveText').textContent='Alcance a saída para concluir a fase.';
 }
 
 function startBoss(){
   state.bossStarted=true;boss.x=14*T;boss.y=9*T;boss.hp=boss.maxHp;boss.dead=false;boss.nextAttack=performance.now()+1000;
-  showToast(boss.type==='neon'?'NEON OVERMIND DESPERTOU':'CORE WARDEN DESPERTOU','warn');
+  showToast(boss.type==='neon'?'NEON OVERMIND DESPERTOU':boss.type==='abyss'?'ABYSS ENGINE ATIVADO':'CORE WARDEN DESPERTOU','warn');
 }
 function updateBoss(dt,now){
   if(!level.boss||!state.bossStarted||boss.dead)return;
@@ -311,7 +350,7 @@ function updateBoss(dt,now){
   if(near(player,boss,42)){
     if(player.overdriveUntil>now&&now>boss.invuln){
       boss.hp--;boss.invuln=now+900;boss.state='hurt';state.score+=750;state.combo=Math.min(16,state.combo*2);
-      if(boss.hp<=0){boss.dead=true;state.bossDefeated=true;state.score+=3000;save.crystals+=8;persist();showToast(boss.type==='neon'?'Neon Overmind derrotado':'Core Warden derrotado');setTimeout(completeLevel,650)}
+      if(boss.hp<=0){boss.dead=true;state.bossDefeated=true;state.score+=3000;save.crystals+=8;persist();showToast(boss.type==='neon'?'Neon Overmind derrotado':boss.type==='abyss'?'Abyss Engine destruído':'Core Warden derrotado');setTimeout(completeLevel,650)}
     }else if(now>boss.invuln-700)hit();
   }
 }
@@ -324,14 +363,67 @@ function activatePower(type){
   showToast(`Power-up: ${type.toUpperCase()}`);
 }
 
+
+function triggerCombo(now){
+  state.combo=Math.min(16,Math.max(2,state.combo*2));
+  state.comboUntil=now+3500;
+}
+function rollRareDrop(x,y){
+  const chance=.08+(save.upgrades.luck||0)*.05;
+  if(Math.random()<chance){
+    save.crystals++;
+    state.rareDrops++;
+    persist();
+    showToast('DROP RARO: +1 cristal');
+  }
+}
+function usePulse(now){
+  if(!save.upgrades.pulse||now<player.skillCd)return;
+  const cooldown=Math.max(4200,10000-(save.upgrades.pulsecd||0)*1200);
+  player.skillCd=now+cooldown;
+  const radius=180;
+  for(const e of enemies){
+    if(e.dead<=now && Math.hypot(e.x-player.x,e.y-player.y)<=radius){
+      e.dead=now+2200;
+      state.score+=180;
+      state.kills++;
+      triggerCombo(now);
+      rollRareDrop(e.x,e.y);
+    }
+  }
+  state.freezeUntil=Math.max(state.freezeUntil,now+1200);
+  if(level.boss&&state.bossStarted&&!boss.dead&&Math.hypot(boss.x-player.x,boss.y-player.y)<=radius){
+    boss.invuln=Math.max(0,now-1);
+    boss.state='hurt';
+  }
+  const fx=$('#pulseFx');
+  if(fx){
+    fx.style.left=`${(player.x/W)*100}%`;
+    fx.style.top=`${(player.y/H)*100}%`;
+    fx.classList.remove('hidden','active');
+    void fx.offsetWidth;
+    fx.classList.add('active');
+    setTimeout(()=>fx.classList.add('hidden'),520);
+  }
+  showToast('EMP PULSE');
+}
+function updateCombo(now){
+  if(state.combo>1&&now>state.comboUntil)state.combo=1;
+  const bar=$('#comboBar span');
+  if(bar){
+    const remain=state.combo>1?Math.max(0,state.comboUntil-now):0;
+    bar.style.width=`${Math.min(100,(remain/3500)*100)}%`;
+  }
+}
+
 function gamepadVector(){
   const pads=navigator.getGamepads?navigator.getGamepads():[];
-  const gp=[...pads].find(Boolean); if(!gp)return {x:0,y:0,dash:false};
+  const gp=[...pads].find(Boolean); if(!gp)return {x:0,y:0,dash:false,skill:false};
   let x=gp.axes?.[0]||0,y=gp.axes?.[1]||0;
   if(Math.abs(x)<.25)x=0;if(Math.abs(y)<.25)y=0;
   if(gp.buttons?.[14]?.pressed)x=-1;if(gp.buttons?.[15]?.pressed)x=1;
   if(gp.buttons?.[12]?.pressed)y=-1;if(gp.buttons?.[13]?.pressed)y=1;
-  return {x,y,dash:!!(gp.buttons?.[0]?.pressed||gp.buttons?.[1]?.pressed)};
+  return {x,y,dash:!!(gp.buttons?.[0]?.pressed||gp.buttons?.[1]?.pressed),skill:!!(gp.buttons?.[2]?.pressed||gp.buttons?.[3]?.pressed)};
 }
 
 function updatePlayer(dt,now){
@@ -356,6 +448,8 @@ function updatePlayer(dt,now){
   }
 
   const baseSpeed=player.speed*(state.activePower==='speed'?1.45:1);
+  const skillPressed=keys['e']||touch.skill||gp.skill;
+  if(skillPressed)usePulse(now);
   const dashPressed=keys[' ']||touch.dash||gp.dash;
   const dashing=dashPressed&&now>player.dashCd;
   let sp=baseSpeed;
@@ -435,6 +529,17 @@ function chooseEnemyDir(e){
     return options[0];
   }
 
+  if(e.type==='voidweaver'){
+    const targetX=player.x+(Math.sin(performance.now()/700)*T*2);
+    const targetY=player.y+(Math.cos(performance.now()/700)*T*2);
+    options.sort((a,b)=>{
+      const da=Math.abs((e.x+a.x*T)-targetX)+Math.abs((e.y+a.y*T)-targetY);
+      const db=Math.abs((e.x+b.x*T)-targetX)+Math.abs((e.y+b.y*T)-targetY);
+      return da-db;
+    });
+    return options[0];
+  }
+
   if(e.type==='stalker'){
     // Stalker alternates between direct pursuit and flanking.
     const targetX=player.x-(player.moveDir?.y||0)*T*2;
@@ -491,8 +596,10 @@ function updateEnemies(dt,now){
     if(near(player,e,24)){
       if(player.overdriveUntil>now){
         e.dead=now+3500;
-        state.combo=Math.min(16,state.combo*2);
+        state.kills++;
+        triggerCombo(now);
         state.score+=Math.round(200*state.combo*(1+save.upgrades.combo*.10));
+        rollRareDrop(e.x,e.y);
       }else if(player.shield){
         player.shield=false;
         e.dead=now+1800;
@@ -541,7 +648,16 @@ function gameOver(){
 }
 function updateHud(){
   $('#score').textContent=state.score;$('#lives').textContent=state.lives;$('#combo').textContent='x'+state.combo;
-  $('#power').textContent=state.activePower||'—';$('#wallet').textContent=save.crystals;updateObjectiveState();
+  $('#power').textContent=state.activePower||'—';$('#wallet').textContent=save.crystals;
+  const sh=$('#skillHud');
+  if(sh){
+    if(!save.upgrades.pulse)sh.textContent='BLOQUEADA';
+    else{
+      const rem=Math.max(0,player.skillCd-performance.now());
+      sh.textContent=rem>0?`${(rem/1000).toFixed(1)}s`:'EMP PRONTO';
+    }
+  }
+  updateObjectiveState();
 }
 
 function drawMap(){
@@ -590,7 +706,7 @@ function draw(now){
   }
 
   if(level.boss&&state.bossStarted&&!boss.dead){
-    const bossFrames=boss.type==='neon'?images.boss2:images.boss;
+    const bossFrames=boss.type==='neon'?images.boss2:boss.type==='abyss'?images.boss3:images.boss;
     safeDraw(frame(bossFrames[boss.state]||bossFrames.idle,a6),boss.x-48,boss.y-48,96,96);
     ctx.fillStyle='#230808';ctx.fillRect(W/2-110,54,220,12);ctx.fillStyle='#ff5246';ctx.fillRect(W/2-108,56,216*(boss.hp/boss.maxHp),8);
   }
@@ -608,12 +724,15 @@ function draw(now){
   if(q!=='low'&&!save.settings.reduceFlash){ctx.shadowColor=player.anim==='overdrive'?'#d54cff':'#32d8ff';ctx.shadowBlur=q==='high'?18:8}
   safeDraw(im,-31,-31,62,62);ctx.restore();
   if(player.shield){ctx.strokeStyle='#56c9ff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(player.x,player.y,30,0,Math.PI*2);ctx.stroke()}
+  if(save.upgrades.pulse&&now>=player.skillCd){
+    safeDraw(frame(images.pulse,a6),player.x+22,player.y-38,22,22);
+  }
 }
 
 function loop(now){
   if(!running)return;
   const dt=Math.min(.033,(now-last)/1000||0);last=now;
-  updatePlayer(dt,now);updateEnemies(dt,now);updateBoss(dt,now);updateShocks(now);updateHud();draw(now);
+  updatePlayer(dt,now);updateEnemies(dt,now);updateBoss(dt,now);updateShocks(now);updateCombo(now);updateHud();draw(now);
   raf=requestAnimationFrame(loop);
 }
 
@@ -657,7 +776,7 @@ function renderLevels(){
       <span class="level-status">${done?'CONCLUÍDA':unlocked?'DISPONÍVEL':'BLOQUEADA'}</span>
       <img src="assets/ui/levels/level${n}.webp" alt="">
       <div class="level-info"><h3>FASE ${n} — ${l.name}</h3>
-      <p>${n===1?'Terminais, chave e confronto com o Core Warden.':n===2?'Trilhos eletrificados, 3 terminais, checkpoint e Rail Sentinels.':'Cidade Neon, 4 terminais, Neon Stalkers e confronto com o Neon Overmind.'}</p>
+      <p>${n===1?'Terminais, chave e confronto com o Core Warden.':n===2?'Trilhos eletrificados, 3 terminais, checkpoint e Rail Sentinels.':n===3?'Cidade Neon, 4 terminais, Neon Stalkers e Neon Overmind.':'Ruínas do Vazio, Void Weavers, EMP Pulse e confronto com o Abyss Engine.'}</p>
       <button data-level="${n}" ${unlocked?'':'disabled'}>${done?'JOGAR NOVAMENTE':'INICIAR'}</button></div>
     </article>`;
   }).join('');
