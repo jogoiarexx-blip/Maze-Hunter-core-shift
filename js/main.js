@@ -1,6 +1,10 @@
 const C=document.querySelector('#game'),ctx=C.getContext('2d');
 const W=C.width,H=C.height,T=32,COLS=28,ROWS=20;
 const $=s=>document.querySelector(s);
+const dom={};
+function cacheDom(){
+  for(const id of ['score','lives','combo','power','wallet','skillHud','objective','objectiveText','checkpointText','pauseBtn','mainMenu','toast','comboBar','pulseFx'])dom[id]=document.getElementById(id);
+}
 const keys=Object.create(null),pressed=Object.create(null);
 const touch={up:false,down:false,left:false,right:false,dash:false,skill:false};
 const touchPressed={dash:false,skill:false};
@@ -23,7 +27,10 @@ addEventListener('keyup',e=>{
 });
 addEventListener('blur',()=>{for(const k of Object.keys(keys))keys[k]=false;for(const k of Object.keys(pressed))pressed[k]=false;for(const k of Object.keys(touch))touch[k]=false;touchPressed.dash=false;touchPressed.skill=false;gamepadDash=false;gamepadSkill=false});
 document.addEventListener('visibilitychange',()=>{
-  if(document.hidden){for(const k of Object.keys(keys))keys[k]=false;for(const k of Object.keys(pressed))pressed[k]=false;for(const k of Object.keys(touch))touch[k]=false;touchPressed.dash=false;touchPressed.skill=false;gamepadDash=false;gamepadSkill=false}
+  if(document.hidden){
+    for(const k of Object.keys(keys))keys[k]=false;for(const k of Object.keys(pressed))pressed[k]=false;for(const k of Object.keys(touch))touch[k]=false;touchPressed.dash=false;touchPressed.skill=false;gamepadDash=false;gamepadSkill=false;
+    if(running)pauseGame();
+  }
 });
 
 const paths={
@@ -223,12 +230,18 @@ const upgradeDefs=[
  {id:'luck',name:'Coletor Raro',desc:'+5% chance de cristal ao eliminar inimigo',max:4,base:280},
 ];
 
-let save=JSON.parse(localStorage.getItem('mh-core-save')||'null')||{};
+let save={};
+try{save=JSON.parse(localStorage.getItem('mh-core-save')||'null')||{}}catch(err){
+  try{localStorage.setItem('mh-core-save-corrupt-backup',localStorage.getItem('mh-core-save')||'')}catch{}
+  console.warn('[Maze Hunter] save corrompido; um backup foi criado e um novo save será iniciado.',err);
+  save={};
+}
 save.crystals=Number(save.crystals||0);
 save.upgrades=Object.assign({speed:0,overdrive:0,magnet:0,shield:0,dash:0,combo:0,crystal:0,pulse:0,pulsecd:0,luck:0},save.upgrades||{});
 save.equipped=Array.isArray(save.equipped)?save.equipped:[];
-save.settings=Object.assign({graphics:'auto',volume:80,reduceFlash:false},save.settings||{});
+save.settings=Object.assign({graphics:'auto',volume:80,musicVolume:55,sfxVolume:80,reduceFlash:false},save.settings||{});
 save.completed=Object.assign({1:false,2:false,3:false,4:false},save.completed||{});
+save.stats=Object.assign({bestScore:{},bestTime:{},bestRank:{},deaths:0,bestCombo:1,runs:0},save.stats||{});
 // Keep legacy saves playable: sanitize equipped modules and auto-equip up to three purchased modules once.
 save.equipped=save.equipped.filter(id=>upgradeDefs.some(u=>u.id===id)&&(save.upgrades[id]||0)>0).slice(0,3);
 if(!save.equipped.length){
@@ -236,6 +249,20 @@ if(!save.equipped.length){
 }
 function moduleLevel(id){return save.equipped.includes(id)?(save.upgrades[id]||0):0}
 function moduleActive(id){return moduleLevel(id)>0}
+function moduleEffectText(id){
+  const lv=moduleLevel(id);
+  if(id==='speed')return `+${lv*4}% velocidade`;
+  if(id==='overdrive')return `+${(lv*1.2).toFixed(1)} s Overdrive`;
+  if(id==='magnet')return lv?'Ímã permanente':'Inativo';
+  if(id==='shield')return lv?'Escudo inicial':'Inativo';
+  if(id==='dash')return lv?`-${lv*180} ms recarga`:'Recarga padrão';
+  if(id==='combo')return `+${lv*10}% pontos de combo`;
+  if(id==='crystal')return `+${lv} cristal por conclusão`;
+  if(id==='pulse')return lv?'EMP desbloqueado':'EMP bloqueado';
+  if(id==='pulsecd')return `-${(lv*1.2).toFixed(1)} s recarga EMP`;
+  if(id==='luck')return `+${lv*5}% chance de drop raro`;
+  return '';
+}
 
 function persist(){
   localStorage.setItem('mh-core-save',JSON.stringify(save));
@@ -252,7 +279,7 @@ function reset(levelId=currentLevelId){
   map=level.map.map(r=>r.padEnd(COLS,'#').slice(0,COLS).split(''));
 
   const startNow=performance.now();
-  state={score:0,lives:3,combo:1,comboUntil:0,remaining:0,activePower:null,powerUntil:0,freezeUntil:0,terminals:0,hasSpecial:false,bossStarted:false,bossDefeated:false,startTime:startNow,kills:0,rareDrops:0,
+  state={score:0,lives:3,combo:1,comboUntil:0,remaining:0,activePower:null,powerUntil:0,freezeUntil:0,terminals:0,hasSpecial:false,bossStarted:false,bossDefeated:false,startTime:startNow,kills:0,rareDrops:0,respawnInvulnUntil:0,screenShakeUntil:0,bossProjectiles:[],hazards:[],
     playerReleaseAt:startNow+3000,enemiesReleaseAt:startNow+8000,playerReleased:false,enemiesReleased:false,resultShown:false,finishAt:0};
 
   player={x:0,y:0,dir:{x:-1,y:0},moveDir:{x:0,y:0},queuedDir:{x:0,y:0},speed:120*(1+moduleLevel('speed')*.04),anim:'idle',animUntil:0,shield:moduleActive('shield'),dashCd:0,overdriveUntil:0,skillCd:0,dead:false,deathStartedAt:0,deathUntil:0};
@@ -494,7 +521,7 @@ function collect(){
   if(!checkpoint.on&&near(player,checkpoint,28)){
     checkpoint.on=true;checkpoint.spawn={x:checkpoint.x,y:checkpoint.y};state.score+=150;
     $('#checkpointText').textContent='Checkpoint ativo: você renasce aqui.';
-    burst(checkpoint.x,checkpoint.y,16);sfx(620,.16,'sine',.04);showToast('Checkpoint ativado');
+    burst(checkpoint.x,checkpoint.y,16);sfx(620,.16,'sine',.04);if(navigator.vibrate)navigator.vibrate(22);showToast('Checkpoint ativado');
   }
   if(exitDoor.open&&near(player,exitDoor,29)){
     if(level.boss&&!state.bossStarted)startBoss();
@@ -557,7 +584,18 @@ function updateBoss(dt,now){
   const res=moveWithSubsteps(boss,boss.dir,58*dt,13,decide);
   if(res.blocked)boss.dir=chooseBossDir();
 
-  if(now>boss.nextAttack){boss.state='attack';boss.stateUntil=now+520;boss.nextAttack=now+1500}
+  if(now>boss.nextAttack){
+    boss.state='attack';boss.stateUntil=now+520;boss.nextAttack=now+1500;
+    if(boss.type==='core'){
+      const dx=player.x-boss.x,dy=player.y-boss.y,m=Math.hypot(dx,dy)||1;
+      state.bossProjectiles.push({x:boss.x,y:boss.y,vx:dx/m*165,vy:dy/m*165,r:8,life:3});
+    }else if(boss.type==='neon'){
+      for(const a of [0,Math.PI/2,Math.PI,Math.PI*1.5])state.bossProjectiles.push({x:boss.x,y:boss.y,vx:Math.cos(a)*150,vy:Math.sin(a)*150,r:7,life:2.6});
+    }else if(boss.type==='abyss'){
+      state.hazards.push({x:player.x,y:player.y,r:26,life:2.2,arm:.7});
+    }
+    burst(boss.x,boss.y,10);sfx(boss.type==='abyss'?100:180,.11,'sawtooth',.035);
+  }
   if(near(player,boss,42)){
     if(player.overdriveUntil>now&&now>boss.invuln){
       boss.hp--;boss.invuln=now+900;boss.state='hurt';boss.stateUntil=now+420;state.score+=750;burst(boss.x,boss.y,14);sfx(190,.09,'square',.04);triggerCombo(now);
@@ -580,7 +618,7 @@ function activatePower(type){
 
 
 function triggerCombo(now){
-  state.combo=Math.min(16,Math.max(2,state.combo*2));
+  state.combo=Math.min(16,Math.max(2,state.combo*2));save.stats.bestCombo=Math.max(save.stats.bestCombo||1,state.combo);
   state.comboUntil=now+3500;
 }
 function rollRareDrop(x,y){
@@ -625,7 +663,7 @@ function usePulse(now){
     fx.classList.add('active');
     setTimeout(()=>fx.classList.add('hidden'),520);
   }
-  burst(player.x,player.y,24);sfx(320,.18,'square',.04);showToast('EMP PULSE');
+  burst(player.x,player.y,24);sfx(320,.18,'square',.04);if(navigator.vibrate)navigator.vibrate(35);showToast('EMP PULSE');
 }
 function updateCombo(now){
   if(state.combo>1&&now>state.comboUntil)state.combo=1;
@@ -823,7 +861,12 @@ function updateEnemies(dt,now){
       if(!e.dir||(!e.dir.x&&!e.dir.y))e.dir=chooseEnemyDir(e);
     };
 
-    const result=moveWithSubsteps(e,e.dir,e.speed*dt,10,decide);
+    let result;
+    const canPhase=e.type==='phase'&&((Math.floor(now/1200)+enemies.indexOf(e))%4===0);
+    if(canPhase){
+      e.x+=e.dir.x*e.speed*dt;e.y+=e.dir.y*e.speed*dt;
+      result={moved:true,blocked:false};
+    }else result=moveWithSubsteps(e,e.dir,e.speed*dt,10,decide);
     if(result.blocked){
       if(atTileCenter(e,6))centerEntity(e);
       e.dir=chooseEnemyDir(e);
@@ -838,12 +881,24 @@ function updateEnemies(dt,now){
         state.score+=Math.round(200*state.combo*(1+moduleLevel('combo')*.10));
         rollRareDrop(e.x,e.y);
       }else if(player.shield){
-        player.shield=false;e.dead=now+1800;
+        player.shield=false;e.dead=now+3500;state.kills++;state.score+=120;triggerCombo(now);rollRareDrop(e.x,e.y);burst(e.x,e.y,12);sfx(220,.08,'square',.035);showToast('Escudo: inimigo repelido','warn');
       }else hit();
     }
   }
 }
 
+function updateBossAttacks(dt,now){
+  for(const p of state.bossProjectiles){
+    p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
+    if(p.life>0&&Math.hypot(player.x-p.x,player.y-p.y)<p.r+12)hit();
+  }
+  state.bossProjectiles=state.bossProjectiles.filter(p=>p.life>0&&!wall(p.x,p.y));
+  for(const h of state.hazards){
+    h.life-=dt;h.arm-=dt;
+    if(h.arm<=0&&Math.hypot(player.x-h.x,player.y-h.y)<h.r)hit();
+  }
+  state.hazards=state.hazards.filter(h=>h.life>0);
+}
 function updateShocks(now){
   if(!shocks.length||player.dead)return;
   for(const s of shocks){
@@ -853,11 +908,11 @@ function updateShocks(now){
 }
 
 function hit(){
-  const now=performance.now();if(now<hitLock||player.dead)return;hitLock=now+1500;
+  const now=performance.now();if(now<hitLock||player.dead||now<state.respawnInvulnUntil)return;hitLock=now+1500;
   if(player.shield){player.shield=false;burst(player.x,player.y,18);sfx(210,.12,'square',.04);showToast('Escudo quebrado','warn');return}
   state.lives--;state.combo=1;state.comboUntil=0;player.anim='hurt';player.animUntil=now+520;burst(player.x,player.y,14);sfx(125,.12,'sawtooth',.04);
   if(state.lives<=0){
-    player.dead=true;player.anim='death';player.deathStartedAt=now;player.deathUntil=now+950;
+    player.dead=true;player.anim='death';player.deathStartedAt=now;player.deathUntil=now+950;save.stats.deaths=(save.stats.deaths||0)+1;persist();
     player.moveDir={x:0,y:0};player.queuedDir={x:0,y:0};player.overdriveUntil=0;
     sfx(70,.4,'sawtooth',.06);showToast('NÚCLEO COLAPSADO','warn');
     return;
@@ -868,20 +923,31 @@ function hit(){
     placeOnWalkable(player,level.start[0],level.start[1]);
   }
   player.moveDir={x:0,y:0};player.queuedDir={x:0,y:0};
-  player.overdriveUntil=0;
+  player.overdriveUntil=0;state.respawnInvulnUntil=now+1100;
 }
 function completeLevel(){
   if(state.resultShown)return;
   state.resultShown=true;running=false;paused=false;
+  const wasCompleted=!!save.completed[currentLevelId];
   save.completed[currentLevelId]=true;
-  const completionReward=level.reward+save.upgrades.crystal;
+  const firstClear=!save.completed[currentLevelId];
+  const baseReward=firstClear?level.reward:Math.max(1,Math.ceil(level.reward*.4));
+  const completionReward=baseReward+moduleLevel('crystal');
   save.crystals+=completionReward;persist();
   $('#pauseBtn')?.classList.add('hidden');
 
   const elapsed=Math.max(0,(performance.now()-state.startTime)/1000);
+  save.stats.runs=(save.stats.runs||0)+1;
+  save.stats.bestScore[currentLevelId]=Math.max(save.stats.bestScore[currentLevelId]||0,state.score);
+  const prevTime=save.stats.bestTime[currentLevelId];
+  if(!prevTime||elapsed<prevTime)save.stats.bestTime[currentLevelId]=elapsed;
   const rankScore=state.score+state.lives*1200-Math.floor(elapsed*8);
   let rank='C';
   if(rankScore>=9000)rank='S';else if(rankScore>=6500)rank='A';else if(rankScore>=4000)rank='B';
+  const rankValue={C:1,B:2,A:3,S:4};
+  const prevRank=save.stats.bestRank[currentLevelId]||'C';
+  if(rankValue[rank]>rankValue[prevRank])save.stats.bestRank[currentLevelId]=rank;
+  persist();
 
   $('#resultTitle').textContent=`FASE ${currentLevelId} CONCLUÍDA`;
   $('#resultText').innerHTML=`${level.name}<br><span class="rank-chip">RANK ${rank}</span><br>Pontuação: ${state.score}<br>Vidas: ${state.lives}<br>Tempo: ${elapsed.toFixed(1)}s<br>Eliminações: ${state.kills}<br>Drops raros: ${state.rareDrops}<br>Recompensa: +${completionReward} cristais`;
@@ -964,6 +1030,13 @@ function draw(now){
     if(!boss.dead){ctx.fillStyle='#230808';ctx.fillRect(W/2-110,54,220,12);ctx.fillStyle='#ff5246';ctx.fillRect(W/2-108,56,216*(boss.hp/boss.maxHp),8)}
   }
 
+  for(const p of state.bossProjectiles){
+    ctx.save();ctx.fillStyle='#ff9d45';ctx.shadowColor='#ff5a24';ctx.shadowBlur=currentGraphics()==='low'?0:12;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore();
+  }
+  for(const h of state.hazards){
+    ctx.save();ctx.globalAlpha=Math.max(.15,Math.min(.8,h.life/2.2));ctx.strokeStyle=h.arm>0?'#7849ff':'#ff4f9a';ctx.lineWidth=h.arm>0?2:5;ctx.beginPath();ctx.arc(h.x,h.y,h.r,0,Math.PI*2);ctx.stroke();ctx.restore();
+  }
+
   for(const e of enemies)if(e.dead<=now){
     const im=frame(images.enemies[e.type],Math.floor(now/120));
     ctx.save();ctx.globalAlpha=e.type==='phase'?.7:1;
@@ -971,14 +1044,18 @@ function draw(now){
     ctx.restore();
   }
 
-  const arr=images.player[player.anim]||images.player.idle,im=frame(arr,Math.floor(now/110));
-  ctx.save();ctx.translate(player.x,player.y);ctx.rotate(Math.atan2(player.dir.y,player.dir.x));
+  const arr=images.player[player.anim]||images.player.idle;
+  const playerFrameIndex=player.anim==='death'?Math.min(5,Math.floor((now-player.deathStartedAt)/155)):player.anim==='hurt'?Math.min(3,Math.floor(Math.max(0,player.animUntil-now)/130)):Math.floor(now/110);
+  const im=frame(arr,playerFrameIndex);
+  ctx.save();ctx.translate(player.x,player.y);
+  if(player.dir.x<0)ctx.scale(-1,1);
   const q=currentGraphics();
   if(q!=='low'&&!save.settings.reduceFlash){ctx.shadowColor=player.anim==='overdrive'?'#d54cff':'#32d8ff';ctx.shadowBlur=q==='high'?18:8}
+  if(now<state.respawnInvulnUntil&&Math.floor(now/90)%2===0)ctx.globalAlpha=.45;
   safeDraw(im,-31,-31,62,62);ctx.restore();
   drawEffects();
   if(player.shield){ctx.strokeStyle='#56c9ff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(player.x,player.y,30,0,Math.PI*2);ctx.stroke()}
-  if(save.upgrades.pulse&&now>=player.skillCd){
+  if(moduleActive('pulse')&&now>=player.skillCd){
     safeDraw(frame(images.pulse,a6),player.x+22,player.y-38,22,22);
   }
 }
@@ -986,9 +1063,8 @@ function draw(now){
 function loop(now,sessionId=runId){
   if(!running||sessionId!==runId)return;
   const dt=Math.min(.033,(now-last)/1000||0);last=now;
-  updateReleaseCountdown(now);updatePlayer(dt,now);updateEnemies(dt,now);if(now>=state.enemiesReleaseAt)updateBoss(dt,now);if(now>=state.playerReleaseAt)updateShocks(now);updateCombo(now);updateEffects(dt);updateHud();draw(now);
+  updateReleaseCountdown(now);updatePlayer(dt,now);updateEnemies(dt,now);if(now>=state.enemiesReleaseAt){updateBoss(dt,now);updateBossAttacks(dt,now)}if(now>=state.playerReleaseAt)updateShocks(now);updateCombo(now);updateEffects(dt);updateHud();draw(now);
   if(player.dead&&now>=player.deathUntil&&!state.resultShown){gameOver();return}
-  if(state.finishAt&&now>=state.finishAt&&!state.resultShown){completeLevel();return}
   raf=requestAnimationFrame(t=>loop(t,sessionId));
 }
 
@@ -1016,7 +1092,8 @@ function renderEquipment(){
   const grid=$('#equipmentGrid'),slots=$('#equippedSlots');if(!grid||!slots)return;
   grid.innerHTML=upgradeDefs.map(u=>{
     const selected=save.equipped.includes(u.id);
-    return `<div class="module ${selected?'selected':''}"><b>${u.name}</b><p>Nível ${save.upgrades[u.id]||0}/${u.max}</p><button data-equip="${u.id}" ${(save.upgrades[u.id]||0)<=0?'disabled':''}>${selected?'REMOVER':'EQUIPAR'}</button></div>`;
+    const dep=u.id==='pulsecd'&&!moduleActive('pulse');
+    return `<div class="module ${selected?'selected':''}"><b>${u.name}</b><p>Nível ${save.upgrades[u.id]||0}/${u.max}</p><small>${moduleEffectText(u.id)}${dep?' · Requer EMP Pulse equipado':''}</small><button data-equip="${u.id}" ${((save.upgrades[u.id]||0)<=0||dep)?'disabled':''}>${selected?'REMOVER':'EQUIPAR'}</button></div>`;
   }).join('');
   document.querySelectorAll('[data-equip]').forEach(b=>b.onclick=()=>{
     const id=b.dataset.equip;
@@ -1025,6 +1102,9 @@ function renderEquipment(){
     persist();
   });
   slots.innerHTML=save.equipped.map(id=>`<span class="badge">${upgradeDefs.find(u=>u.id===id)?.name||id}</span>`).join(' ')||'<small>Escolha até 3 módulos.</small>';
+}
+function applyBuildPreset(ids){
+  save.equipped=ids.filter(id=>(save.upgrades[id]||0)>0).slice(0,3);persist();
 }
 function renderLevels(){
   const grid=$('#levelGrid');if(!grid)return;
@@ -1145,7 +1225,7 @@ addEventListener('keydown',e=>{
 });
 
 load().then(()=>{
-  renderUpgrades();renderBuild();renderEquipment();renderLevels();setupMenu();reset(1);showMenuScreen('home');
+  cacheDom();cacheDom();renderUpgrades();renderBuild();renderEquipment();renderLevels();setupMenu();reset(1);showMenuScreen('home');
   document.body.classList.toggle('graphics-low',currentGraphics()==='low');
 }).catch(err=>{
   console.error('[Maze Hunter] falha de inicialização:',err);
