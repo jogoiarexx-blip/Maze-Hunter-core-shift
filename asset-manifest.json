@@ -1,5 +1,5 @@
 {
-  "version": "0.7.0",
+  "version": "0.7.1",
   "name": "Maze Hunter: Core Shift",
   "assets_format": "webp",
   "player_animations": {
@@ -96,7 +96,23 @@
     "boss_exit_required",
     "horizontal_sprite_mirroring",
     "runtime_sfx_volume",
-    "gameplay_particles"
+    "gameplay_particles",
+    "safe_corrupt_save_recovery",
+    "equipped_crystal_reward_only",
+    "upright_player_mirroring",
+    "player_death_frame_timing",
+    "emp_icon_respects_build",
+    "shield_enemy_resolution",
+    "respawn_invulnerability",
+    "phase_enemy_wall_phasing",
+    "phase2_rail_sentinel_prime",
+    "boss_unique_projectiles_hazards",
+    "virtual_joystick",
+    "audio_music_sfx_mix",
+    "build_presets",
+    "phase_records",
+    "portrait_orientation_hint",
+    "replay_reward_rebalance"
   ],
   "menu_screens": [
     "home",
