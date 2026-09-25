@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#07111d">
 <link rel="icon" href="./favicon.ico">
-<title>Maze Hunter: Core Shift v0.7.0</title>
+<title>Maze Hunter: Core Shift v0.7.1</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -52,7 +52,7 @@
               <h2>MAZE HUNTER</h2>
               <h3>CORE SHIFT</h3>
               <p>Domine labirintos vivos, monte sua build e enfrente os guardiões do Núcleo.</p>
-              <div class="version-chip">v0.7.0</div>
+              <div class="version-chip">v0.7.1</div>
             </div>
           </div>
 
@@ -90,7 +90,12 @@
           <h2>EQUIPAMENTOS</h2>
           <p class="lead">Escolha até 3 módulos para compor a build ativa.</p>
           <div id="equipmentGrid" class="equipment-grid"></div>
-          <div class="build-box"><b>BUILD ATIVA</b><div id="equippedSlots"></div></div>
+          <div class="build-box"><b>BUILD ATIVA</b><div id="equippedSlots"></div>
+<div class="build-presets">
+<button data-preset="speed">VELOCIDADE</button>
+<button data-preset="survival">SOBREVIVÊNCIA</button>
+<button data-preset="emp">EMP</button>
+</div></div>
         </section>
 
         <section class="menu-card submenu hidden" data-screen="collection">
@@ -119,8 +124,16 @@
             <select id="graphicsSelect"><option value="auto">Automático</option><option value="low">Baixo</option><option value="medium">Médio</option><option value="high">Alto</option></select>
           </div>
           <div class="option-row">
-            <div><b>VOLUME GERAL</b><small>Preferência salva para o sistema de áudio.</small></div>
+            <div><b>VOLUME GERAL</b><small>Controle mestre.</small></div>
             <input id="volumeRange" type="range" min="0" max="100" value="80">
+          </div>
+          <div class="option-row">
+            <div><b>MÚSICA</b><small>Volume da trilha ambiente.</small></div>
+            <input id="musicVolumeRange" type="range" min="0" max="100" value="55">
+          </div>
+          <div class="option-row">
+            <div><b>EFEITOS</b><small>Dash, coleta, EMP, dano e bosses.</small></div>
+            <input id="sfxVolumeRange" type="range" min="0" max="100" value="80">
           </div>
           <div class="option-row">
             <div><b>REDUZIR FLASHES</b><small>Diminui pulsos intensos.</small></div>
@@ -145,7 +158,7 @@
             <div><kbd>ESPAÇO</kbd><span>Dash</span></div><div><kbd>E</kbd><span>EMP Pulse</span></div>
             <div><kbd>ESC</kbd><span>Pausar / voltar</span></div>
             <div><kbd>GAMEPAD</kbd><span>D-pad / analógico + A</span></div>
-            <div><kbd>TOUCH</kbd><span>Direcional e Dash na tela</span></div>
+            <div><kbd>TOUCH</kbd><span>Direcional, EMP e Dash na tela</span></div>
           </div>
         </section>
 
@@ -157,7 +170,7 @@
             <h3>Maze Hunter: Core Shift</h3>
             <p>Conceito e desenvolvimento: <b>Luis Paulo Alves</b></p>
             <p>Projeto original de arcade labiríntico com progressão permanente.</p>
-            <span>Versão 0.7.0</span>
+            <span>Versão 0.7.1</span>
           </div>
         </section>
 
@@ -182,6 +195,7 @@
         </section>
       </div>
 
+      <div id="orientationHint" class="orientation-hint hidden">GIRE O CELULAR PARA O MODO PAISAGEM</div>
       <div id="touchControls" class="touch-controls">
         <div class="dpad">
           <button data-touch="up">▲</button>
