@@ -193,7 +193,7 @@ const levels={
     powers:[[9,3,'speed'],[18,3,'shield'],[4,11,'magnet'],[23,11,'freeze'],[10,17,'phase'],[20,17,'teleport']],
     enemies:[['sentinel',8,6],['sentinel',21,7],['hunter',13,11],['strategist',17,15],['phase',9,15]],
     checkpoint:[14,13],
-    shocks:[[8,5],[19,5],[7,13],[20,13]], boss:false, reward:8
+    shocks:[[8,5],[19,5],[7,13],[20,13]], boss:true, bossType:'rail', bossHp:6, reward:8
   },
   3:{
     name:'Cidade Neon',
@@ -565,7 +565,7 @@ function updateObjectiveState(){
   else if(state.terminals<terminals.length)$('#objectiveText').textContent=`Ative os terminais: ${state.terminals}/${terminals.length}.`;
   else if(!state.hasSpecial)$('#objectiveText').textContent=level.special.type==='battery'?'Encontre a Bateria Espectral.':'Encontre a Chave do Núcleo.';
   else if(level.boss&&!state.bossStarted)$('#objectiveText').textContent='Vá até o portão para despertar o guardião desta fase.';
-  else if(level.boss&&!state.bossDefeated)$('#objectiveText').textContent=boss.type==='neon'?'Use Overdrive para romper o escudo do Neon Overmind.':boss.type==='abyss'?'Use Overdrive e EMP Pulse para expor o Abyss Engine.':'Use Overdrive para causar dano ao Core Warden.';
+  else if(level.boss&&!state.bossDefeated)$('#objectiveText').textContent=boss.type==='neon'?'Use Overdrive para romper o escudo do Neon Overmind.':boss.type==='abyss'?'Use Overdrive e EMP Pulse para expor o Abyss Engine.':boss.type==='rail'?'Desvie dos disparos dos trilhos e ataque o Rail Sentinel Prime em Overdrive.':'Use Overdrive para causar dano ao Core Warden.';
   else $('#objectiveText').textContent='Alcance a saída para concluir a fase.';
 }
 
@@ -573,7 +573,7 @@ function startBoss(){
   state.bossStarted=true;
   placeOnWalkable(boss,14,9);
   boss.hp=boss.maxHp;boss.dead=false;boss.state='idle';boss.stateUntil=0;boss.deathStartedAt=0;boss.deathUntil=0;boss.nextAttack=performance.now()+1000;boss.dir={x:0,y:0};
-  sfx(145,.28,'sawtooth',.045);showToast(boss.type==='neon'?'NEON OVERMIND DESPERTOU':boss.type==='abyss'?'ABYSS ENGINE ATIVADO':'CORE WARDEN DESPERTOU','warn');
+  sfx(145,.28,'sawtooth',.045);showToast(boss.type==='neon'?'NEON OVERMIND DESPERTOU':boss.type==='abyss'?'ABYSS ENGINE ATIVADO':boss.type==='rail'?'RAIL SENTINEL PRIME ONLINE':'CORE WARDEN DESPERTOU','warn');
 }
 function chooseBossDir(){
   const dirs=validDirsAt(boss.x,boss.y,13);
@@ -589,7 +589,7 @@ function defeatBoss(now){
   if(boss.dead)return;
   boss.hp=0;boss.dead=true;boss.state='death';boss.deathStartedAt=now;boss.deathUntil=now+900;burst(boss.x,boss.y,34);sfx(95,.35,'sawtooth',.06);
   state.bossDefeated=true;state.score+=3000;save.crystals+=8;persist();
-  showToast(boss.type==='neon'?'Neon Overmind derrotado':boss.type==='abyss'?'Abyss Engine destruído':'Core Warden derrotado');
+  showToast(boss.type==='neon'?'Neon Overmind derrotado':boss.type==='abyss'?'Abyss Engine destruído':boss.type==='rail'?'Rail Sentinel Prime derrotado':'Core Warden derrotado');
   updateObjectiveState();
 }
 function updateBoss(dt,now){
@@ -610,6 +610,9 @@ function updateBoss(dt,now){
       state.bossProjectiles.push({x:boss.x,y:boss.y,vx:dx/m*165,vy:dy/m*165,r:8,life:3});
     }else if(boss.type==='neon'){
       for(const a of [0,Math.PI/2,Math.PI,Math.PI*1.5])state.bossProjectiles.push({x:boss.x,y:boss.y,vx:Math.cos(a)*150,vy:Math.sin(a)*150,r:7,life:2.6});
+    }else if(boss.type==='rail'){
+      const dx=player.x-boss.x,dy=player.y-boss.y,m=Math.hypot(dx,dy)||1,nx=-dy/m,ny=dx/m;
+      for(const side of [-1,1])state.bossProjectiles.push({x:boss.x+nx*14*side,y:boss.y+ny*14*side,vx:dx/m*210,vy:dy/m*210,r:6,life:2.4});
     }else if(boss.type==='abyss'){
       state.hazards.push({x:player.x,y:player.y,r:26,life:2.2,arm:.7});
     }
@@ -948,8 +951,8 @@ function completeLevel(){
   if(state.resultShown)return;
   state.resultShown=true;running=false;paused=false;stopMusic();
   const wasCompleted=!!save.completed[currentLevelId];
+  const firstClear=!wasCompleted;
   save.completed[currentLevelId]=true;
-  const firstClear=!save.completed[currentLevelId];
   const baseReward=firstClear?level.reward:Math.max(1,Math.ceil(level.reward*.4));
   const completionReward=baseReward+moduleLevel('crystal');
   save.crystals+=completionReward;persist();
@@ -977,7 +980,7 @@ function completeLevel(){
 
 function gameOver(){
   if(state.resultShown)return;
-  state.resultShown=true;running=false;paused=false;$('#pauseBtn')?.classList.add('hidden');
+  state.resultShown=true;running=false;paused=false;stopMusic();$('#pauseBtn')?.classList.add('hidden');
   $('#resultTitle').textContent='GAME OVER';
   $('#resultText').textContent=`Fase ${currentLevelId} — ${level.name}\nPontuação: ${state.score}\nO checkpoint continua válido apenas nesta tentativa.`;
   const nextBtn=document.querySelector('[data-action="next"]');if(nextBtn)nextBtn.style.display='none';
@@ -1045,7 +1048,10 @@ function draw(now){
   if(level.boss&&state.bossStarted&&(!boss.dead||now<boss.deathUntil)){
     const bossFrames=boss.type==='neon'?images.boss2:boss.type==='abyss'?images.boss3:images.boss;
     const deathIndex=boss.dead?Math.min(5,Math.floor((now-boss.deathStartedAt)/150)):a6;
-    safeDraw(frame(bossFrames[boss.state]||bossFrames.idle,deathIndex),boss.x-48,boss.y-48,96,96);
+    if(boss.type==='rail'){
+      const rim=frame(images.enemies.sentinel,Math.floor(now/110));
+      safeDraw(rim,boss.x-50,boss.y-50,100,100);
+    }else safeDraw(frame(bossFrames[boss.state]||bossFrames.idle,deathIndex),boss.x-48,boss.y-48,96,96);
     if(!boss.dead){ctx.fillStyle='#230808';ctx.fillRect(W/2-110,54,220,12);ctx.fillStyle='#ff5246';ctx.fillRect(W/2-108,56,216*(boss.hp/boss.maxHp),8)}
   }
 
@@ -1133,7 +1139,7 @@ function renderLevels(){
       <span class="level-status">${done?'CONCLUÍDA':unlocked?'DISPONÍVEL':'BLOQUEADA'}</span>
       <img src="assets/ui/levels/level${n}.webp" alt="">
       <div class="level-info"><h3>FASE ${n} — ${l.name}</h3>
-      <p>${n===1?'Terminais, chave e confronto com o Core Warden.':n===2?'Trilhos eletrificados, 3 terminais, checkpoint e Rail Sentinels.':n===3?'Cidade Neon, 4 terminais, Neon Stalkers e Neon Overmind.':'Ruínas do Vazio, Void Weavers, EMP Pulse e confronto com o Abyss Engine.'}</p>
+      <p>${n===1?'Terminais, chave e confronto com o Core Warden.':n===2?'Trilhos eletrificados, 3 terminais, checkpoint e Rail Sentinel Prime.':n===3?'Cidade Neon, 4 terminais, Neon Stalkers e Neon Overmind.':'Ruínas do Vazio, Void Weavers, EMP Pulse e confronto com o Abyss Engine.'}</p>
       <small>Melhor score: ${save.stats.bestScore[n]||0} · Melhor rank: ${save.stats.bestRank[n]||'—'} · Melhor tempo: ${save.stats.bestTime[n]?save.stats.bestTime[n].toFixed(1)+'s':'—'}</small>
       <button data-level="${n}" ${unlocked?'':'disabled'}>${done?'JOGAR NOVAMENTE':'INICIAR'}</button></div>
     </article>`;
@@ -1220,9 +1226,7 @@ function setupMenu(){
   $('#pauseBtn')?.addEventListener('click',pauseGame);
 
   const gs=$('#graphicsSelect'),vr=$('#volumeRange'),mvr=$('#musicVolumeRange'),svr=$('#sfxVolumeRange'),rf=$('#reduceFlash');
-  gs.value=save.settings.graphics;gs.onchange=()=>{save.settings.graphics=gs.value;document.body.classList.toggle('graphics-low',currentGraphics()==='low');
-  const updateOrientationHint=()=>{const el=$('#orientationHint');if(el){const coarse=matchMedia('(hover:none),(pointer:coarse)').matches;el.classList.toggle('hidden',!(coarse&&innerHeight>innerWidth))}};
-  updateOrientationHint();addEventListener('resize',updateOrientationHint);persist()};
+  gs.value=save.settings.graphics;gs.onchange=()=>{save.settings.graphics=gs.value;document.body.classList.toggle('graphics-low',currentGraphics()==='low');persist()};
   vr.value=save.settings.volume;vr.oninput=()=>{save.settings.volume=Number(vr.value);persist()};
   if(mvr){mvr.value=save.settings.musicVolume;mvr.oninput=()=>{save.settings.musicVolume=Number(mvr.value);persist()}}
   if(svr){svr.value=save.settings.sfxVolume;svr.oninput=()=>{save.settings.sfxVolume=Number(svr.value);persist()}}
@@ -1249,6 +1253,9 @@ function setupMenu(){
     stick.addEventListener('pointermove',e=>{if(e.buttons)moveStick(e)});
     stick.addEventListener('pointerup',clearStick);stick.addEventListener('pointercancel',clearStick);
   }
+  const updateOrientationHint=()=>{const el=$('#orientationHint');if(el){const coarse=matchMedia('(hover:none),(pointer:coarse)').matches;el.classList.toggle('hidden',!(coarse&&innerHeight>innerWidth))}};
+  updateOrientationHint();addEventListener('resize',updateOrientationHint,{passive:true});
+
   document.querySelectorAll('[data-touch]').forEach(btn=>{
     const k=btn.dataset.touch;
     const on=e=>{e.preventDefault();ensureAudio();if(!touch[k]&&(k==='dash'||k==='skill'))touchPressed[k]=true;touch[k]=true};
