@@ -526,7 +526,7 @@ function updateObjectiveState(){
 function startBoss(){
   state.bossStarted=true;
   placeOnWalkable(boss,14,9);
-  boss.hp=boss.maxHp;boss.dead=false;if(now>=boss.stateUntil)boss.state='idle';boss.stateUntil=0;boss.deathStartedAt=0;boss.deathUntil=0;boss.nextAttack=performance.now()+1000;boss.dir={x:0,y:0};
+  boss.hp=boss.maxHp;boss.dead=false;boss.state='idle';boss.stateUntil=0;boss.deathStartedAt=0;boss.deathUntil=0;boss.nextAttack=performance.now()+1000;boss.dir={x:0,y:0};
   sfx(145,.28,'sawtooth',.045);showToast(boss.type==='neon'?'NEON OVERMIND DESPERTOU':boss.type==='abyss'?'ABYSS ENGINE ATIVADO':'CORE WARDEN DESPERTOU','warn');
 }
 function chooseBossDir(){
@@ -548,7 +548,7 @@ function defeatBoss(now){
 }
 function updateBoss(dt,now){
   if(!level.boss||!state.bossStarted||boss.dead)return;
-  boss.state='idle';
+  if(now>=boss.stateUntil)boss.state='idle';
   const decide=()=>{
     const dirs=validDirsAt(boss.x,boss.y,13);
     const forwardOK=dirs.some(d=>d.x===boss.dir.x&&d.y===boss.dir.y);
