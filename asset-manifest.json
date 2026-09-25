@@ -1,5 +1,5 @@
 {
-  "version": "0.6.4",
+  "version": "0.7.0",
   "name": "Maze Hunter: Core Shift",
   "assets_format": "webp",
   "player_animations": {
@@ -87,7 +87,16 @@
     "queued_countdown_input",
     "single_animation_loop",
     "touch_pointer_capture",
-    "parallel_asset_loading"
+    "parallel_asset_loading",
+    "equipped_build_modules_only",
+    "dash_press_edge_trigger",
+    "emp_press_edge_trigger",
+    "timed_player_hurt_death",
+    "timed_boss_attack_hurt_death",
+    "boss_exit_required",
+    "horizontal_sprite_mirroring",
+    "runtime_sfx_volume",
+    "gameplay_particles"
   ],
   "menu_screens": [
     "home",
