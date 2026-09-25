@@ -1,4 +1,4 @@
-# Maze Hunter: Core Shift v0.6.4
+# Maze Hunter: Core Shift v0.7.0
 
 Protótipo jogável inspirado na lógica de labirintos clássicos, mas com progressão, power-ups de fase e melhorias permanentes.
 
@@ -196,3 +196,12 @@ Controles:
 - Recarga EMP não pode mais ser comprada antes de desbloquear o Módulo EMP.
 
 - Conclusão após morte do boss agora usa o relógio do próprio loop, então também congela durante pause e não executa por trás dos menus.
+
+
+## v0.7.0 — gameplay polish
+- Build ativa limitada aos 3 módulos equipados.
+- Dash e EMP usam acionamento por pressionamento, sem repetição ao segurar.
+- Estados hurt/death do jogador e bosses agora têm duração real.
+- Boss derrotado exige alcançar a saída para concluir a fase.
+- Sprites do jogador permanecem na vertical e espelham ao olhar para a esquerda.
+- Feedback de partículas e efeitos sonoros sintetizados respeitando o volume geral.
