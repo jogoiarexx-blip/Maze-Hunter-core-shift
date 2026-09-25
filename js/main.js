@@ -485,11 +485,30 @@ function sfx(freq=440,duration=.07,type='sine',gain=.045){
   try{
     const o=ac.createOscillator(),g=ac.createGain(),now=ac.currentTime;
     o.type=type;o.frequency.setValueAtTime(freq,now);
-    g.gain.setValueAtTime(Math.max(.0001,gain*(save.settings.volume/100)),now);
+    g.gain.setValueAtTime(Math.max(.0001,gain*(save.settings.volume/100)*(save.settings.sfxVolume/100)),now);
     g.gain.exponentialRampToValueAtTime(.0001,now+duration);
     o.connect(g);g.connect(ac.destination);o.start(now);o.stop(now+duration);
   }catch{}
 }
+let musicTimer=0,musicStep=0;
+function playMusicNote(freq,duration=.22){
+  const ac=ensureAudio();if(!ac||!running||save.settings.volume<=0||save.settings.musicVolume<=0)return;
+  try{
+    const o=ac.createOscillator(),g=ac.createGain(),now=ac.currentTime;
+    o.type='triangle';o.frequency.setValueAtTime(freq,now);
+    const vol=.018*(save.settings.volume/100)*(save.settings.musicVolume/100);
+    g.gain.setValueAtTime(Math.max(.0001,vol),now);g.gain.exponentialRampToValueAtTime(.0001,now+duration);
+    o.connect(g);g.connect(ac.destination);o.start(now);o.stop(now+duration);
+  }catch{}
+}
+function startMusic(){
+  stopMusic();
+  const scales={1:[196,220,247,294],2:[174,196,233,262],3:[220,262,330,392],4:[147,174,220,233]};
+  const notes=scales[currentLevelId]||scales[1];
+  musicStep=0;
+  musicTimer=setInterval(()=>{if(running&&!paused){playMusicNote(notes[musicStep%notes.length]);musicStep++}},520);
+}
+function stopMusic(){if(musicTimer){clearInterval(musicTimer);musicTimer=0}}
 function burst(x,y,count=8){
   if(currentGraphics()==='low')count=Math.ceil(count/2);
   for(let i=0;i<count;i++){
@@ -927,7 +946,7 @@ function hit(){
 }
 function completeLevel(){
   if(state.resultShown)return;
-  state.resultShown=true;running=false;paused=false;
+  state.resultShown=true;running=false;paused=false;stopMusic();
   const wasCompleted=!!save.completed[currentLevelId];
   save.completed[currentLevelId]=true;
   const firstClear=!save.completed[currentLevelId];
@@ -1085,7 +1104,7 @@ function buy(id){
 }
 function renderBuild(){
   const el=$('#buildSummary');if(!el)return;
-  const chosen=save.equipped.length?save.equipped:upgradeDefs.filter(u=>save.upgrades[u.id]>0).slice(0,3).map(u=>u.id);
+  const chosen=save.equipped;
   el.innerHTML=chosen.map(id=>{const u=upgradeDefs.find(x=>x.id===id);return u?`<span class="badge">${u.name} ${save.upgrades[id]||0}</span>`:''}).join(' ')||'<small>Nenhum módulo equipado.</small>';
 }
 function renderEquipment(){
@@ -1115,6 +1134,7 @@ function renderLevels(){
       <img src="assets/ui/levels/level${n}.webp" alt="">
       <div class="level-info"><h3>FASE ${n} — ${l.name}</h3>
       <p>${n===1?'Terminais, chave e confronto com o Core Warden.':n===2?'Trilhos eletrificados, 3 terminais, checkpoint e Rail Sentinels.':n===3?'Cidade Neon, 4 terminais, Neon Stalkers e Neon Overmind.':'Ruínas do Vazio, Void Weavers, EMP Pulse e confronto com o Abyss Engine.'}</p>
+      <small>Melhor score: ${save.stats.bestScore[n]||0} · Melhor rank: ${save.stats.bestRank[n]||'—'} · Melhor tempo: ${save.stats.bestTime[n]?save.stats.bestTime[n].toFixed(1)+'s':'—'}</small>
       <button data-level="${n}" ${unlocked?'':'disabled'}>${done?'JOGAR NOVAMENTE':'INICIAR'}</button></div>
     </article>`;
   }).join('');
@@ -1137,7 +1157,7 @@ function startLevel(id){
   state.enemiesReleaseAt=now+8000;
   state.playerReleased=false;
   state.enemiesReleased=false;
-  running=true;paused=false;last=now;hideMenu();$('#pauseBtn').classList.remove('hidden');
+  running=true;paused=false;last=now;hideMenu();$('#pauseBtn').classList.remove('hidden');startMusic();
   updateReleaseCountdown(now);
   validateLevelConfiguration();
   const sessionId=runId;
@@ -1170,7 +1190,7 @@ let pauseStartedAt=0;
 function pauseGame(){
   if(!running||paused)return;
   pauseStartedAt=performance.now();
-  paused=true;running=false;$('#pauseBtn').classList.add('hidden');showMenuScreen('pause')
+  paused=true;running=false;stopMusic();$('#pauseBtn').classList.add('hidden');showMenuScreen('pause')
 }
 function resumeGame(){
   if(!paused)return;
@@ -1178,14 +1198,14 @@ function resumeGame(){
   const pausedFor=Math.max(0,now-pauseStartedAt);
   shiftFutureTimers(pausedFor);
   state.startTime+=pausedFor;
-  paused=false;running=true;last=now;hideMenu();$('#pauseBtn').classList.remove('hidden');
+  paused=false;running=true;last=now;hideMenu();$('#pauseBtn').classList.remove('hidden');startMusic();
   const sessionId=runId;
   raf=requestAnimationFrame(t=>loop(t,sessionId))
 }
 function quitToMenu(){
   runId++;
   if(raf)cancelAnimationFrame(raf);
-  running=false;paused=false;$('#pauseBtn').classList.add('hidden');showMenuScreen('home');draw(performance.now())
+  running=false;paused=false;stopMusic();$('#pauseBtn').classList.add('hidden');showMenuScreen('home');draw(performance.now())
 }
 function restartGame(){startLevel(currentLevelId)}
 
@@ -1199,13 +1219,36 @@ function setupMenu(){
   document.querySelector('[data-action="next"]')?.addEventListener('click',()=>{if(levels[currentLevelId+1])startLevel(currentLevelId+1);else showMenuScreen('levels')});
   $('#pauseBtn')?.addEventListener('click',pauseGame);
 
-  const gs=$('#graphicsSelect'),vr=$('#volumeRange'),rf=$('#reduceFlash');
-  gs.value=save.settings.graphics;gs.onchange=()=>{save.settings.graphics=gs.value;document.body.classList.toggle('graphics-low',currentGraphics()==='low');persist()};
+  const gs=$('#graphicsSelect'),vr=$('#volumeRange'),mvr=$('#musicVolumeRange'),svr=$('#sfxVolumeRange'),rf=$('#reduceFlash');
+  gs.value=save.settings.graphics;gs.onchange=()=>{save.settings.graphics=gs.value;document.body.classList.toggle('graphics-low',currentGraphics()==='low');
+  const updateOrientationHint=()=>{const el=$('#orientationHint');if(el){const coarse=matchMedia('(hover:none),(pointer:coarse)').matches;el.classList.toggle('hidden',!(coarse&&innerHeight>innerWidth))}};
+  updateOrientationHint();addEventListener('resize',updateOrientationHint);persist()};
   vr.value=save.settings.volume;vr.oninput=()=>{save.settings.volume=Number(vr.value);persist()};
+  if(mvr){mvr.value=save.settings.musicVolume;mvr.oninput=()=>{save.settings.musicVolume=Number(mvr.value);persist()}}
+  if(svr){svr.value=save.settings.sfxVolume;svr.oninput=()=>{save.settings.sfxVolume=Number(svr.value);persist()}}
   rf.checked=!!save.settings.reduceFlash;rf.onchange=()=>{save.settings.reduceFlash=rf.checked;persist()};
   $('#fullscreenBtn')?.addEventListener('click',async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen()}catch(e){}});
   $('#resetSaveBtn')?.addEventListener('click',()=>{if(confirm('Apagar todo o progresso de Maze Hunter?')){localStorage.removeItem('mh-core-save');location.reload()}});
+  document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{
+    const presets={speed:['speed','dash','magnet'],survival:['shield','magnet','overdrive'],emp:['pulse','pulsecd','combo']};
+    applyBuildPreset(presets[b.dataset.preset]||[]);
+  }));
 
+  const stick=$('#virtualStick');
+  if(stick){
+    const knob=stick.querySelector('.virtual-stick-knob');
+    const clearStick=()=>{touch.left=touch.right=touch.up=touch.down=false;if(knob)knob.style.transform='translate(0,0)'};
+    const moveStick=e=>{
+      const r=stick.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+      let dx=e.clientX-cx,dy=e.clientY-cy;const max=r.width*.28,m=Math.hypot(dx,dy)||1;
+      if(m>max){dx=dx/m*max;dy=dy/m*max}
+      if(knob)knob.style.transform=`translate(${dx}px,${dy}px)`;
+      touch.left=dx<-12;touch.right=dx>12;touch.up=dy<-12;touch.down=dy>12;
+    };
+    stick.addEventListener('pointerdown',e=>{e.preventDefault();ensureAudio();try{stick.setPointerCapture(e.pointerId)}catch{};moveStick(e)});
+    stick.addEventListener('pointermove',e=>{if(e.buttons)moveStick(e)});
+    stick.addEventListener('pointerup',clearStick);stick.addEventListener('pointercancel',clearStick);
+  }
   document.querySelectorAll('[data-touch]').forEach(btn=>{
     const k=btn.dataset.touch;
     const on=e=>{e.preventDefault();ensureAudio();if(!touch[k]&&(k==='dash'||k==='skill'))touchPressed[k]=true;touch[k]=true};
@@ -1225,7 +1268,7 @@ addEventListener('keydown',e=>{
 });
 
 load().then(()=>{
-  cacheDom();cacheDom();renderUpgrades();renderBuild();renderEquipment();renderLevels();setupMenu();reset(1);showMenuScreen('home');
+  cacheDom();renderUpgrades();renderBuild();renderEquipment();renderLevels();setupMenu();reset(1);showMenuScreen('home');
   document.body.classList.toggle('graphics-low',currentGraphics()==='low');
 }).catch(err=>{
   console.error('[Maze Hunter] falha de inicialização:',err);
