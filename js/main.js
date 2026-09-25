@@ -1,25 +1,29 @@
 const C=document.querySelector('#game'),ctx=C.getContext('2d');
 const W=C.width,H=C.height,T=32,COLS=28,ROWS=20;
 const $=s=>document.querySelector(s);
-const keys=Object.create(null);
+const keys=Object.create(null),pressed=Object.create(null);
 const touch={up:false,down:false,left:false,right:false,dash:false,skill:false};
-let gamepadDash=false;
+const touchPressed={dash:false,skill:false};
+let gamepadDash=false,gamepadSkill=false;
 
 function inputKey(e){
   if(e.code==='Space')return 'space';
   return String(e.key||'').toLowerCase();
 }
 addEventListener('keydown',e=>{
-  keys[inputKey(e)]=true;
+  if(typeof ensureAudio==='function')ensureAudio();
+  const k=inputKey(e);
+  if(!keys[k]&&!e.repeat)pressed[k]=true;
+  keys[k]=true;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
 });
 addEventListener('keyup',e=>{
   keys[inputKey(e)]=false;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
 });
-addEventListener('blur',()=>{for(const k of Object.keys(keys))keys[k]=false;for(const k of Object.keys(touch))touch[k]=false});
+addEventListener('blur',()=>{for(const k of Object.keys(keys))keys[k]=false;for(const k of Object.keys(pressed))pressed[k]=false;for(const k of Object.keys(touch))touch[k]=false;touchPressed.dash=false;touchPressed.skill=false;gamepadDash=false;gamepadSkill=false});
 document.addEventListener('visibilitychange',()=>{
-  if(document.hidden){for(const k of Object.keys(keys))keys[k]=false;for(const k of Object.keys(touch))touch[k]=false}
+  if(document.hidden){for(const k of Object.keys(keys))keys[k]=false;for(const k of Object.keys(pressed))pressed[k]=false;for(const k of Object.keys(touch))touch[k]=false;touchPressed.dash=false;touchPressed.skill=false;gamepadDash=false;gamepadSkill=false}
 });
 
 const paths={
@@ -225,6 +229,13 @@ save.upgrades=Object.assign({speed:0,overdrive:0,magnet:0,shield:0,dash:0,combo:
 save.equipped=Array.isArray(save.equipped)?save.equipped:[];
 save.settings=Object.assign({graphics:'auto',volume:80,reduceFlash:false},save.settings||{});
 save.completed=Object.assign({1:false,2:false,3:false,4:false},save.completed||{});
+// Keep legacy saves playable: sanitize equipped modules and auto-equip up to three purchased modules once.
+save.equipped=save.equipped.filter(id=>upgradeDefs.some(u=>u.id===id)&&(save.upgrades[id]||0)>0).slice(0,3);
+if(!save.equipped.length){
+  save.equipped=upgradeDefs.filter(u=>(save.upgrades[u.id]||0)>0).slice(0,3).map(u=>u.id);
+}
+function moduleLevel(id){return save.equipped.includes(id)?(save.upgrades[id]||0):0}
+function moduleActive(id){return moduleLevel(id)>0}
 
 function persist(){
   localStorage.setItem('mh-core-save',JSON.stringify(save));
@@ -232,7 +243,7 @@ function persist(){
 }
 
 let currentLevelId=1,level=levels[1],map=level.map.map(r=>r.split(''));
-let state,player,enemies,frags,crystals,powers,terminals,specialItem,exitDoor,boss,checkpoint,shocks;
+let state,player,enemies,frags,crystals,powers,terminals,specialItem,exitDoor,boss,checkpoint,shocks,particles=[];
 let raf,last=0,running=false,paused=false,menuScreen='home',hitLock=0,toastTimer=0,runId=0;
 
 function reset(levelId=currentLevelId){
@@ -244,10 +255,10 @@ function reset(levelId=currentLevelId){
   state={score:0,lives:3,combo:1,comboUntil:0,remaining:0,activePower:null,powerUntil:0,freezeUntil:0,terminals:0,hasSpecial:false,bossStarted:false,bossDefeated:false,startTime:startNow,kills:0,rareDrops:0,
     playerReleaseAt:startNow+3000,enemiesReleaseAt:startNow+8000,playerReleased:false,enemiesReleased:false,resultShown:false,finishAt:0};
 
-  player={x:0,y:0,dir:{x:-1,y:0},moveDir:{x:0,y:0},queuedDir:{x:0,y:0},speed:120*(1+save.upgrades.speed*.04),anim:'idle',shield:save.upgrades.shield>0,dashCd:0,overdriveUntil:0,skillCd:0};
+  player={x:0,y:0,dir:{x:-1,y:0},moveDir:{x:0,y:0},queuedDir:{x:0,y:0},speed:120*(1+moduleLevel('speed')*.04),anim:'idle',animUntil:0,shield:moduleActive('shield'),dashCd:0,overdriveUntil:0,skillCd:0,dead:false,deathStartedAt:0,deathUntil:0};
   placeOnWalkable(player,level.start[0],level.start[1]);
 
-  frags=[];crystals=[];powers=[];enemies=[];
+  frags=[];crystals=[];powers=[];enemies=[];particles=[];
   terminals=level.terminals.map(([x,y])=>makeWalkablePoint(x,y,{on:false}));
   specialItem=makeWalkablePoint(level.special.pos[0],level.special.pos[1],{on:true,type:level.special.type});
   exitDoor=makeWalkablePoint(level.exit[0],level.exit[1],{open:false});
@@ -255,7 +266,7 @@ function reset(levelId=currentLevelId){
   checkpoint.spawn={x:player.x,y:player.y};
   shocks=(level.shocks||[]).map(([x,y],i)=>makeWalkablePoint(x,y,{phase:i*700}));
 
-  boss=makeWalkablePoint(14,9,{hp:level.bossHp||0,maxHp:level.bossHp||0,state:'idle',nextAttack:0,dead:!level.boss,invuln:0,type:level.bossType||'core',dir:{x:0,y:0}});
+  boss=makeWalkablePoint(14,9,{hp:level.bossHp||0,maxHp:level.bossHp||0,state:'idle',stateUntil:0,nextAttack:0,dead:!level.boss,deathStartedAt:0,deathUntil:0,invuln:0,type:level.bossType||'core',dir:{x:0,y:0}});
 
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
     const c=map[y][x];
@@ -437,24 +448,57 @@ function showToast(text,type='good'){
   clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.add('hidden'),1700);
 }
 
+let audioCtx=null;
+function ensureAudio(){
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;
+  try{if(!audioCtx)audioCtx=new AC();if(audioCtx.state==='suspended')audioCtx.resume();return audioCtx}catch{return null}
+}
+function sfx(freq=440,duration=.07,type='sine',gain=.045){
+  const ac=ensureAudio();if(!ac||save.settings.volume<=0)return;
+  try{
+    const o=ac.createOscillator(),g=ac.createGain(),now=ac.currentTime;
+    o.type=type;o.frequency.setValueAtTime(freq,now);
+    g.gain.setValueAtTime(Math.max(.0001,gain*(save.settings.volume/100)),now);
+    g.gain.exponentialRampToValueAtTime(.0001,now+duration);
+    o.connect(g);g.connect(ac.destination);o.start(now);o.stop(now+duration);
+  }catch{}
+}
+function burst(x,y,count=8){
+  if(currentGraphics()==='low')count=Math.ceil(count/2);
+  for(let i=0;i<count;i++){
+    const a=(Math.PI*2*i/count)+Math.random()*.35,sp=32+Math.random()*65;
+    particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:.45+Math.random()*.35,max:.8,size:2+Math.random()*3});
+  }
+  if(particles.length>140)particles.splice(0,particles.length-140);
+}
+function updateEffects(dt){
+  for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.97;p.vy*=.97;p.life-=dt}
+  particles=particles.filter(p=>p.life>0);
+}
+function drawEffects(){
+  if(!particles.length)return;ctx.save();
+  for(const p of particles){ctx.globalAlpha=Math.max(0,p.life/p.max);ctx.fillStyle='#8ff7ff';ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()}
+  ctx.restore();
+}
+
 function collect(){
-  const magnet=save.upgrades.magnet>0||state.activePower==='magnet';
+  const magnet=moduleActive('magnet')||state.activePower==='magnet';
   for(const f of frags)if(f.on){
     if(magnet&&Math.hypot(f.x-player.x,f.y-player.y)<90){f.x+=(player.x-f.x)*.08;f.y+=(player.y-f.y)*.08}
-    if(near(player,f,18)){f.on=false;state.score+=f.big?50:10;state.remaining--;if(f.big)player.overdriveUntil=performance.now()+5000+save.upgrades.overdrive*1200}
+    if(near(player,f,18)){f.on=false;state.score+=f.big?50:10;state.remaining--;burst(f.x,f.y,f.big?10:5);sfx(f.big?720:560,.05,'sine',.025);if(f.big)player.overdriveUntil=performance.now()+5000+moduleLevel('overdrive')*1200}
   }
-  for(const c of crystals)if(c.on&&near(player,c,22)){c.on=false;save.crystals++;state.score+=100;persist()}
+  for(const c of crystals)if(c.on&&near(player,c,22)){c.on=false;save.crystals++;state.score+=100;burst(c.x,c.y,12);sfx(880,.09,'triangle',.04);persist()}
   for(const p of powers)if(p.on&&near(player,p,23)){p.on=false;activatePower(p.type)}
-  for(const t of terminals)if(!t.on&&near(player,t,25)){t.on=true;state.terminals++;state.score+=250;showToast(`Terminal ${state.terminals}/${terminals.length} ativado`)}
-  if(specialItem.on&&near(player,specialItem,24)){specialItem.on=false;state.hasSpecial=true;state.score+=350;showToast(specialItem.type==='battery'?'Bateria espectral recuperada':'Chave do Núcleo obtida')}
+  for(const t of terminals)if(!t.on&&near(player,t,25)){t.on=true;state.terminals++;state.score+=250;burst(t.x,t.y,12);sfx(520,.10,'square',.03);showToast(`Terminal ${state.terminals}/${terminals.length} ativado`)}
+  if(specialItem.on&&near(player,specialItem,24)){specialItem.on=false;state.hasSpecial=true;state.score+=350;burst(specialItem.x,specialItem.y,16);sfx(760,.14,'triangle',.04);showToast(specialItem.type==='battery'?'Bateria espectral recuperada':'Chave do Núcleo obtida')}
   if(!checkpoint.on&&near(player,checkpoint,28)){
     checkpoint.on=true;checkpoint.spawn={x:checkpoint.x,y:checkpoint.y};state.score+=150;
     $('#checkpointText').textContent='Checkpoint ativo: você renasce aqui.';
-    showToast('Checkpoint ativado');
+    burst(checkpoint.x,checkpoint.y,16);sfx(620,.16,'sine',.04);showToast('Checkpoint ativado');
   }
   if(exitDoor.open&&near(player,exitDoor,29)){
     if(level.boss&&!state.bossStarted)startBoss();
-    else if(!level.boss)completeLevel();
+    else if(!level.boss||state.bossDefeated)completeLevel();
   }
   updateObjectiveState();
 }
@@ -482,8 +526,8 @@ function updateObjectiveState(){
 function startBoss(){
   state.bossStarted=true;
   placeOnWalkable(boss,14,9);
-  boss.hp=boss.maxHp;boss.dead=false;boss.nextAttack=performance.now()+1000;boss.dir={x:0,y:0};
-  showToast(boss.type==='neon'?'NEON OVERMIND DESPERTOU':boss.type==='abyss'?'ABYSS ENGINE ATIVADO':'CORE WARDEN DESPERTOU','warn');
+  boss.hp=boss.maxHp;boss.dead=false;if(now>=boss.stateUntil)boss.state='idle';boss.stateUntil=0;boss.deathStartedAt=0;boss.deathUntil=0;boss.nextAttack=performance.now()+1000;boss.dir={x:0,y:0};
+  sfx(145,.28,'sawtooth',.045);showToast(boss.type==='neon'?'NEON OVERMIND DESPERTOU':boss.type==='abyss'?'ABYSS ENGINE ATIVADO':'CORE WARDEN DESPERTOU','warn');
 }
 function chooseBossDir(){
   const dirs=validDirsAt(boss.x,boss.y,13);
@@ -494,6 +538,13 @@ function chooseBossDir(){
     return da-db;
   });
   return dirs[0];
+}
+function defeatBoss(now){
+  if(boss.dead)return;
+  boss.hp=0;boss.dead=true;boss.state='death';boss.deathStartedAt=now;boss.deathUntil=now+900;burst(boss.x,boss.y,34);sfx(95,.35,'sawtooth',.06);
+  state.bossDefeated=true;state.score+=3000;save.crystals+=8;persist();
+  showToast(boss.type==='neon'?'Neon Overmind derrotado':boss.type==='abyss'?'Abyss Engine destruído':'Core Warden derrotado');
+  updateObjectiveState();
 }
 function updateBoss(dt,now){
   if(!level.boss||!state.bossStarted||boss.dead)return;
@@ -506,15 +557,11 @@ function updateBoss(dt,now){
   const res=moveWithSubsteps(boss,boss.dir,58*dt,13,decide);
   if(res.blocked)boss.dir=chooseBossDir();
 
-  if(now>boss.nextAttack){boss.state='attack';boss.nextAttack=now+1500}
+  if(now>boss.nextAttack){boss.state='attack';boss.stateUntil=now+520;boss.nextAttack=now+1500}
   if(near(player,boss,42)){
     if(player.overdriveUntil>now&&now>boss.invuln){
-      boss.hp--;boss.invuln=now+900;boss.state='hurt';state.score+=750;triggerCombo(now);
-      if(boss.hp<=0){
-        boss.dead=true;state.bossDefeated=true;state.score+=3000;save.crystals+=8;persist();
-        showToast(boss.type==='neon'?'Neon Overmind derrotado':boss.type==='abyss'?'Abyss Engine destruído':'Core Warden derrotado');
-        state.finishAt=now+650;
-      }
+      boss.hp--;boss.invuln=now+900;boss.state='hurt';boss.stateUntil=now+420;state.score+=750;burst(boss.x,boss.y,14);sfx(190,.09,'square',.04);triggerCombo(now);
+      if(boss.hp<=0)defeatBoss(now);
     }else if(now>boss.invuln-700)hit();
   }
 }
@@ -537,7 +584,7 @@ function triggerCombo(now){
   state.comboUntil=now+3500;
 }
 function rollRareDrop(x,y){
-  const chance=.08+(save.upgrades.luck||0)*.05;
+  const chance=.08+moduleLevel('luck')*.05;
   if(Math.random()<chance){
     save.crystals++;
     state.rareDrops++;
@@ -546,8 +593,8 @@ function rollRareDrop(x,y){
   }
 }
 function usePulse(now){
-  if(!save.upgrades.pulse||now<player.skillCd)return;
-  const cooldown=Math.max(4200,10000-(save.upgrades.pulsecd||0)*1200);
+  if(!moduleActive('pulse')||now<player.skillCd)return;
+  const cooldown=Math.max(4200,10000-moduleLevel('pulsecd')*1200);
   player.skillCd=now+cooldown;
   const radius=180;
   for(const e of enemies){
@@ -562,15 +609,11 @@ function usePulse(now){
   state.freezeUntil=Math.max(state.freezeUntil,now+1200);
   if(level.boss&&state.bossStarted&&!boss.dead&&Math.hypot(boss.x-player.x,boss.y-player.y)<=radius){
     boss.invuln=Math.max(0,now-1);
-    boss.state='hurt';
+    boss.state='hurt';boss.stateUntil=now+420;
     boss.nextAttack=Math.max(boss.nextAttack,now+1800);
     if(player.overdriveUntil>now){
       boss.hp--;state.score+=500;triggerCombo(now);boss.invuln=now+900;
-      if(boss.hp<=0){
-        boss.dead=true;state.bossDefeated=true;state.score+=3000;save.crystals+=8;persist();
-        showToast(boss.type==='neon'?'Neon Overmind derrotado':boss.type==='abyss'?'Abyss Engine destruído':'Core Warden derrotado');
-        state.finishAt=now+650;
-      }
+      if(boss.hp<=0)defeatBoss(now);
     }
   }
   const fx=$('#pulseFx');
@@ -582,7 +625,7 @@ function usePulse(now){
     fx.classList.add('active');
     setTimeout(()=>fx.classList.add('hidden'),520);
   }
-  showToast('EMP PULSE');
+  burst(player.x,player.y,24);sfx(320,.18,'square',.04);showToast('EMP PULSE');
 }
 function updateCombo(now){
   if(state.combo>1&&now>state.comboUntil)state.combo=1;
@@ -595,14 +638,18 @@ function updateCombo(now){
 
 function gamepadVector(){
   const pads=navigator.getGamepads?navigator.getGamepads():[];
-  const gp=[...pads].find(Boolean); if(!gp)return {x:0,y:0,dash:false,skill:false};
+  const gp=[...pads].find(Boolean);
+  if(!gp){gamepadDash=false;gamepadSkill=false;return {x:0,y:0,dashPressed:false,skillPressed:false}}
   let x=gp.axes?.[0]||0,y=gp.axes?.[1]||0;
   if(Math.abs(x)<.25)x=0;if(Math.abs(y)<.25)y=0;
   if(gp.buttons?.[14]?.pressed)x=-1;if(gp.buttons?.[15]?.pressed)x=1;
   if(gp.buttons?.[12]?.pressed)y=-1;if(gp.buttons?.[13]?.pressed)y=1;
-  return {x,y,dash:!!(gp.buttons?.[0]?.pressed||gp.buttons?.[1]?.pressed),skill:!!(gp.buttons?.[2]?.pressed||gp.buttons?.[3]?.pressed)};
+  const dash=!!(gp.buttons?.[0]?.pressed||gp.buttons?.[1]?.pressed);
+  const skill=!!(gp.buttons?.[2]?.pressed||gp.buttons?.[3]?.pressed);
+  const dashPressed=dash&&!gamepadDash,skillPressed=skill&&!gamepadSkill;
+  gamepadDash=dash;gamepadSkill=skill;
+  return {x,y,dashPressed,skillPressed};
 }
-
 function requestedDirection(){
   let want={x:0,y:0};
   if(keys.arrowleft||keys.a||touch.left)want={x:-1,y:0};
@@ -619,6 +666,7 @@ function requestedDirection(){
 }
 
 function updatePlayer(dt,now){
+  if(player.dead)return;
   const {want,gp}=requestedDirection();
   if(want.x||want.y)player.queuedDir=want;
   if(now<state.playerReleaseAt){
@@ -627,14 +675,18 @@ function updatePlayer(dt,now){
     return;
   }
 
-  if(keys['e']||touch.skill||gp.skill)usePulse(now);
+  const skillPressed=!!pressed.e||touchPressed.skill||gp.skillPressed;
+  if(skillPressed)usePulse(now);
+  pressed.e=false;touchPressed.skill=false;
 
   let speed=player.speed*(state.activePower==='speed'?1.45:1);
-  const dashing=(keys.space||touch.dash||gp.dash)&&now>player.dashCd;
+  const dashPressed=!!pressed.space||touchPressed.dash||gp.dashPressed;
+  const dashing=dashPressed&&now>player.dashCd;
+  pressed.space=false;touchPressed.dash=false;
   if(dashing){
     speed*=2.2;
-    player.dashCd=now+Math.max(550,1200-save.upgrades.dash*180);
-    player.anim='dash';
+    player.dashCd=now+Math.max(550,1200-moduleLevel('dash')*180);
+    player.anim='dash';burst(player.x,player.y,6);sfx(260,.05,'sawtooth',.02);
   }
 
   // Reverse immediately inside a corridor.
@@ -673,7 +725,8 @@ function updatePlayer(dt,now){
     player.moveDir={x:0,y:0};player._centerLock=null;
   }
 
-  if(player.overdriveUntil>now)player.anim='overdrive';
+  if(now<player.animUntil&&player.anim==='hurt'){}
+  else if(player.overdriveUntil>now)player.anim='overdrive';
   else if(!dashing)player.anim=result.moved?'move':'idle';
 
   if(player.x<0)player.x=W-1;
@@ -757,7 +810,7 @@ function chooseEnemyDir(e){
 }
 
 function updateEnemies(dt,now){
-  if(now<state.enemiesReleaseAt)return;
+  if(now<state.enemiesReleaseAt||player.dead)return;
 
   for(const e of enemies){
     if(e.dead>now||state.freezeUntil>now)continue;
@@ -782,7 +835,7 @@ function updateEnemies(dt,now){
     if(near(player,e,24)){
       if(player.overdriveUntil>now){
         e.dead=now+3500;state.kills++;triggerCombo(now);
-        state.score+=Math.round(200*state.combo*(1+save.upgrades.combo*.10));
+        state.score+=Math.round(200*state.combo*(1+moduleLevel('combo')*.10));
         rollRareDrop(e.x,e.y);
       }else if(player.shield){
         player.shield=false;e.dead=now+1800;
@@ -792,7 +845,7 @@ function updateEnemies(dt,now){
 }
 
 function updateShocks(now){
-  if(!shocks.length)return;
+  if(!shocks.length||player.dead)return;
   for(const s of shocks){
     const active=((now+s.phase)%3200)<1300;
     if(active&&near(player,s,23))hit();
@@ -800,9 +853,15 @@ function updateShocks(now){
 }
 
 function hit(){
-  const now=performance.now();if(now<hitLock)return;hitLock=now+1500;
-  if(player.shield){player.shield=false;showToast('Escudo quebrado','warn');return}
-  state.lives--;state.combo=1;state.comboUntil=0;player.anim='hurt';
+  const now=performance.now();if(now<hitLock||player.dead)return;hitLock=now+1500;
+  if(player.shield){player.shield=false;burst(player.x,player.y,18);sfx(210,.12,'square',.04);showToast('Escudo quebrado','warn');return}
+  state.lives--;state.combo=1;state.comboUntil=0;player.anim='hurt';player.animUntil=now+520;burst(player.x,player.y,14);sfx(125,.12,'sawtooth',.04);
+  if(state.lives<=0){
+    player.dead=true;player.anim='death';player.deathStartedAt=now;player.deathUntil=now+950;
+    player.moveDir={x:0,y:0};player.queuedDir={x:0,y:0};player.overdriveUntil=0;
+    sfx(70,.4,'sawtooth',.06);showToast('NÚCLEO COLAPSADO','warn');
+    return;
+  }
   if(checkpoint.on){
     placeOnWalkable(player,entityTile(checkpoint).x,entityTile(checkpoint).y);
   }else{
@@ -810,9 +869,7 @@ function hit(){
   }
   player.moveDir={x:0,y:0};player.queuedDir={x:0,y:0};
   player.overdriveUntil=0;
-  if(state.lives<=0)gameOver();
 }
-
 function completeLevel(){
   if(state.resultShown)return;
   state.resultShown=true;running=false;paused=false;
@@ -846,7 +903,7 @@ function updateHud(){
   $('#power').textContent=state.activePower||'—';$('#wallet').textContent=save.crystals;
   const sh=$('#skillHud');
   if(sh){
-    if(!save.upgrades.pulse)sh.textContent='BLOQUEADA';
+    if(!moduleActive('pulse'))sh.textContent='BLOQUEADA';
     else{
       const rem=Math.max(0,player.skillCd-performance.now());
       sh.textContent=rem>0?`${(rem/1000).toFixed(1)}s`:'EMP PRONTO';
@@ -900,10 +957,11 @@ function draw(now){
     ctx.restore();
   }
 
-  if(level.boss&&state.bossStarted&&!boss.dead){
+  if(level.boss&&state.bossStarted&&(!boss.dead||now<boss.deathUntil)){
     const bossFrames=boss.type==='neon'?images.boss2:boss.type==='abyss'?images.boss3:images.boss;
-    safeDraw(frame(bossFrames[boss.state]||bossFrames.idle,a6),boss.x-48,boss.y-48,96,96);
-    ctx.fillStyle='#230808';ctx.fillRect(W/2-110,54,220,12);ctx.fillStyle='#ff5246';ctx.fillRect(W/2-108,56,216*(boss.hp/boss.maxHp),8);
+    const deathIndex=boss.dead?Math.min(5,Math.floor((now-boss.deathStartedAt)/150)):a6;
+    safeDraw(frame(bossFrames[boss.state]||bossFrames.idle,deathIndex),boss.x-48,boss.y-48,96,96);
+    if(!boss.dead){ctx.fillStyle='#230808';ctx.fillRect(W/2-110,54,220,12);ctx.fillStyle='#ff5246';ctx.fillRect(W/2-108,56,216*(boss.hp/boss.maxHp),8)}
   }
 
   for(const e of enemies)if(e.dead<=now){
@@ -918,6 +976,7 @@ function draw(now){
   const q=currentGraphics();
   if(q!=='low'&&!save.settings.reduceFlash){ctx.shadowColor=player.anim==='overdrive'?'#d54cff':'#32d8ff';ctx.shadowBlur=q==='high'?18:8}
   safeDraw(im,-31,-31,62,62);ctx.restore();
+  drawEffects();
   if(player.shield){ctx.strokeStyle='#56c9ff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(player.x,player.y,30,0,Math.PI*2);ctx.stroke()}
   if(save.upgrades.pulse&&now>=player.skillCd){
     safeDraw(frame(images.pulse,a6),player.x+22,player.y-38,22,22);
@@ -927,7 +986,8 @@ function draw(now){
 function loop(now,sessionId=runId){
   if(!running||sessionId!==runId)return;
   const dt=Math.min(.033,(now-last)/1000||0);last=now;
-  updateReleaseCountdown(now);updatePlayer(dt,now);updateEnemies(dt,now);if(now>=state.enemiesReleaseAt)updateBoss(dt,now);if(now>=state.playerReleaseAt)updateShocks(now);updateCombo(now);updateHud();draw(now);
+  updateReleaseCountdown(now);updatePlayer(dt,now);updateEnemies(dt,now);if(now>=state.enemiesReleaseAt)updateBoss(dt,now);if(now>=state.playerReleaseAt)updateShocks(now);updateCombo(now);updateEffects(dt);updateHud();draw(now);
+  if(player.dead&&now>=player.deathUntil&&!state.resultShown){gameOver();return}
   if(state.finishAt&&now>=state.finishAt&&!state.resultShown){completeLevel();return}
   raf=requestAnimationFrame(t=>loop(t,sessionId));
 }
@@ -1014,9 +1074,15 @@ function shiftFutureTimers(delta){
   player.overdriveUntil=shift(player.overdriveUntil);
   player.dashCd=shift(player.dashCd);
   player.skillCd=shift(player.skillCd);
+  player.animUntil=shift(player.animUntil);
+  player.deathStartedAt=shift(player.deathStartedAt);
+  player.deathUntil=shift(player.deathUntil);
   hitLock=shift(hitLock);
   boss.nextAttack=shift(boss.nextAttack);
   boss.invuln=shift(boss.invuln);
+  boss.stateUntil=shift(boss.stateUntil);
+  boss.deathStartedAt=shift(boss.deathStartedAt);
+  boss.deathUntil=shift(boss.deathUntil);
   for(const e of enemies)if(e.dead>0)e.dead+=delta;
   for(const s of shocks)s.phase-=delta;
 }
@@ -1062,7 +1128,7 @@ function setupMenu(){
 
   document.querySelectorAll('[data-touch]').forEach(btn=>{
     const k=btn.dataset.touch;
-    const on=e=>{e.preventDefault();touch[k]=true};
+    const on=e=>{e.preventDefault();ensureAudio();if(!touch[k]&&(k==='dash'||k==='skill'))touchPressed[k]=true;touch[k]=true};
     const off=e=>{e.preventDefault();touch[k]=false};
     btn.addEventListener('pointerdown',e=>{on(e);try{btn.setPointerCapture(e.pointerId)}catch{}});
     btn.addEventListener('pointerup',off);btn.addEventListener('pointercancel',off);
