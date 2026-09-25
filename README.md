@@ -1,4 +1,4 @@
-# Maze Hunter: Core Shift v0.7.0
+# Maze Hunter: Core Shift v0.7.1
 
 Protótipo jogável inspirado na lógica de labirintos clássicos, mas com progressão, power-ups de fase e melhorias permanentes.
 
@@ -205,3 +205,21 @@ Controles:
 - Boss derrotado exige alcançar a saída para concluir a fase.
 - Sprites do jogador permanecem na vertical e espelham ao olhar para a esquerda.
 - Feedback de partículas e efeitos sonoros sintetizados respeitando o volume geral.
+
+
+## v0.7.1 — stabilization and gameplay expansion
+- Save recovery if localStorage data is corrupted.
+- Permanent upgrades only affect gameplay when present in the 3-slot active build.
+- Crystal completion bonus now respects the equipped build.
+- Player rendering uses horizontal mirroring instead of whole-sprite rotation.
+- Player hurt/death animation timing and respawn invulnerability improved.
+- EMP visual state now matches whether EMP is actually equipped.
+- Shield collisions now resolve score, kills, combo, rare drops and feedback.
+- Phase enemies periodically phase through walls.
+- Phase 2 now ends with Rail Sentinel Prime.
+- Bosses gained distinct ranged/hazard attacks.
+- Mobile D-pad replaced with a virtual joystick plus landscape guidance.
+- Master, music and SFX volume controls.
+- Build presets for Speed, Survival and EMP.
+- Best score, time and rank are stored per phase.
+- Replays give a reduced base crystal reward; first clears retain the full reward.
